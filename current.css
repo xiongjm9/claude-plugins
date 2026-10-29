@@ -20,9 +20,9 @@ html, body {
 /* 看图胶囊配色兜底（不加 !important，确保各主题自带的 --media-capsule-* 永远优先，
    实际只在「官方原版」下生效）：浅色模式 = 浅灰毛玻璃胶囊（告别原生死黑药丸）；
    深色模式 = 半透浅色胶囊贴近原生观感。图标/文字统一走 --media-capsule-fg，
-   未定义时回落到 var(--foreground)，5 套自定义主题的图标配色不受任何影响。 */
+   未定义时回落到 var(--foreground)。自定义主题自带的 --media-capsule-* 仍优先。 */
 html:not(.dark):not(.theme-dark) body.theme-light,
-html:not(.dark):not(.theme-dark) body:not(.dark):not(.theme-dark):not(.dark-theme) {
+html:not(.dark):not(.theme-dark) body:not(.dark):not(.theme-dark):not(.dark-theme):not(.theme-graphite-dark) {
   --media-capsule-bg: rgba(240, 240, 242, 0.92);
   --media-capsule-border: rgba(0, 0, 0, 0.10);
   --media-capsule-hover: rgba(0, 0, 0, 0.06);
@@ -32,7 +32,7 @@ html:not(.dark):not(.theme-dark) body:not(.dark):not(.theme-dark):not(.dark-them
 body.theme-dark,
 body.dark,
 body.dark-theme,
-body.theme-claude-dark {
+body.theme-graphite-dark {
   --media-capsule-bg: rgba(255, 255, 255, 0.16);
   --media-capsule-border: rgba(255, 255, 255, 0.18);
   --media-capsule-hover: rgba(255, 255, 255, 0.15);
@@ -92,8 +92,8 @@ div[class*="animate-modalFadeIn"]:has([data-testid="mermaid-lightbox-viewport"])
   gap: 6px !important;
   padding: 0 10px !important;
   background: var(--media-capsule-bg, rgba(255, 255, 255, 0.16)) !important;
-  backdrop-filter: blur(12px) saturate(108%) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(108%) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
   border: 1px solid var(--media-capsule-border, rgba(255, 255, 255, 0.18)) !important;
   border-radius: 9999px !important;
   box-shadow: var(--media-capsule-shadow, 0 1px 2px rgba(0, 0, 0, 0.16), 0 8px 16px -8px rgba(0, 0, 0, 0.18)) !important;
@@ -133,8 +133,8 @@ div[class*="animate-modalFadeIn"]:has([data-testid="mermaid-lightbox-viewport"])
   height: 40px !important;
   box-sizing: border-box !important;
   background: var(--media-capsule-bg, rgba(255, 255, 255, 0.16)) !important;
-  backdrop-filter: blur(12px) saturate(108%) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(108%) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
   border: 1px solid var(--media-capsule-border, rgba(255, 255, 255, 0.18)) !important;
   border-radius: 9999px !important;
   box-shadow: var(--media-capsule-shadow, 0 1px 2px rgba(0, 0, 0, 0.16), 0 8px 16px -8px rgba(0, 0, 0, 0.18)) !important;
@@ -165,12 +165,12 @@ div[class*="animate-modalFadeIn"]:has([data-testid="mermaid-lightbox-viewport"])
   pointer-events: auto !important;
 }
 
-/* 深色自定义主题（claude-dark）在宿主仍为浅色 class 时的胶囊兜底。
+/* 深色自定义主题（graphite-dark）在宿主仍为浅色 class 时的胶囊兜底。
    不加 !important：主题 CSS 里的 --media-capsule-* 仍然优先。 */
-body.theme-claude-dark {
-  --media-capsule-bg: rgba(44, 40, 36, 0.82);
-  --media-capsule-border: rgba(243, 235, 227, 0.14);
-  --media-capsule-hover: rgba(243, 235, 227, 0.08);
-  --media-capsule-fg: #F3EBE3;
-  --media-capsule-shadow: 0 1px 2px rgba(0, 0, 0, 0.32), 0 8px 16px -10px rgba(0, 0, 0, 0.40), inset 0 1px 0 rgba(243, 235, 227, 0.06);
+body.theme-graphite-dark {
+  --media-capsule-bg: rgba(28, 28, 30, 0.78);
+  --media-capsule-border: rgba(255, 255, 255, 0.14);
+  --media-capsule-hover: rgba(255, 255, 255, 0.08);
+  --media-capsule-fg: #F5F5F7;
+  --media-capsule-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }

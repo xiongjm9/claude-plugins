@@ -1,6 +1,6 @@
-﻿# Antigravity Custom Theme
+# Antigravity Custom Theme
 
-暖陶燕麦 · 精致（浅色）+ 深炭琥珀（深色），可在主题切换器里选用；另保留官方原版 `stock`。
+银雾（浅色）+ 深空石墨（深色），Apple 官网气质的系统蓝点缀；另保留官方原版 `stock`。已退役暖陶 / 琥珀橙主题。
 
 ## 安装
 

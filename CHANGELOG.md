@@ -1,5 +1,34 @@
 # 主题变更
 
+## 2026-10-29 石墨银重做
+
+退役 `claude` / 「暖陶燕麦 · 精致」和 `claude-dark` / 「深炭琥珀」。旧偏好 id 会映射到对应新主题。切换器只保留三项。`stock` / 「官方原版」的 CSS 未改。
+
+- `graphite-light` / 「银雾」
+  - 页面 `#F5F5F7`，侧栏与顶栏不透明 `#FFFFFF`（`--sidebar: #FFFFFF`）
+  - 正文 `#1D1D1F`，次级 `#6E6E73`，发丝线 `#D2D2D7`
+  - 系统蓝 `#0071E3`：主按钮、焦点环、搜索焦点、选中 2px 左条、文字选区。不大面积铺色
+  - 标题栏 `#FFFFFF`，符号 `#1D1D1F`
+- `graphite-dark` / 「深空石墨」
+  - 真黑底 `#000000`（`--sidebar: #000000`）
+  - 卡片 / 菜单 `#1C1C1E`，再抬一层 `#2C2C2E`
+  - 正文 `#F5F5F7`，次级 `#A1A1A6`
+  - 系统蓝 `#0A84FF`，用法与浅色相同。无橙色、金色、琥珀
+  - 标题栏 `#000000`，符号 `#F5F5F7`
+  - 分层靠炭色和发丝边，去掉 `0 16px 40px` 一类脏灰大阴影
+
+动效（`prefers-reduced-motion: reduce` 时不做位移、缩放和环境光，只保留颜色或短透明度）：
+
+- 主题相关色（背景 / 边框 / 文字）约 `240ms` ease，发送按钮颜色 `200ms`
+- 悬停背景约 `120ms`，并包在 `@media (hover: hover)` 里
+- 发送按钮按下 `scale: 0.97`，只在 `no-preference`，且排除 disabled
+- Composer 聚焦：1px 系统蓝边 + 4px 软光环，`240ms` 淡入
+- 侧栏选中：左侧 `2px` 系统蓝条，`box-shadow` 约 `200ms`
+- 浮层 / 菜单：`opacity` + `translateY(4px → 0)`，`160ms`；减少动效时只淡入透明度
+- 页面 mesh：36s 极淡冷色环境光漂移，没有彩虹渐变。浮层毛玻璃 `blur(20px) saturate(180%)`
+
+硬约束仍在：`--sidebar` 不透明实色，嵌套 `.bg-sidebar` 透明，吸顶标头视口固定渐变，媒体胶囊 `absolute`。未改 `install_permanent.js` / `inject_live.js`。
+
 ## 2026-10-29
 
 - 浅色主题 `claude` 升级为「暖陶燕麦 · 精致」。主色仍是 `#CC5A36`，标题栏 `#EFE8DC` / 符号 `#2E2A25`。mesh 加了低对比暖橙光晕，composer 与浮层用更细的毛玻璃和更轻的阴影，选中行与问答选中项加了暖橙细边。
