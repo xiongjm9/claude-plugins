@@ -1,0 +1,4 @@
+﻿grok-*.log
+work/
+.grok/
+*.tmp
