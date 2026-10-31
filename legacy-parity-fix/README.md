@@ -4,7 +4,7 @@
 
 来源是 2026-10 的日志复盘：
 
-- Antigravity 里约 86 个会话是"bug 单 + 对比老系统"的单点修复，但 `cshtml-to-vue3` 只在整模块翻新时触发，这些会话都没加载技能。
+- 水单（ms-water-memo、ms-finance）在 Antigravity 里有约 86 个会话，大多是"bug 单 + 对比老系统"的单点修复。其中只有 6 个加载过 `cshtml-to-vue3`，因为它的触发条件只写了整模块翻新。
 - 返工集中在：擅自加文案和兜底、改错仓库、整文件 `git checkout` 丢改动、没自测就说修好了。
 
 技能要求模型按四步做：
@@ -29,7 +29,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 
 Antigravity 通过 `~/.gemini/config/skills.json` 读 `~/.agents/skills`，不用另装。
 
-SKILL.md 引用其它技能时写的是 `~/.agents/skills/...` 的完整路径。本目录的真实位置在 D 盘，写成 `../` 相对路径会解析到 `D:\claude-plugins`，那里没有这些文件。
+SKILL.md 引用其它技能时写的是 `~/.agents/skills/...` 的完整路径。本目录的真实位置在 D 盘，客户端如果按真实路径解析，`../` 会落到 `D:\claude-plugins`，那里没有这些文件。
 
 ## 和其它翻新技能的分工
 
