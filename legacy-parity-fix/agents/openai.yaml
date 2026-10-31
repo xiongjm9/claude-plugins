@@ -1,0 +1,6 @@
+interface:
+  display_name: "翻新页面单点修复"
+  short_description: "已翻新的 Vue3 页面与旧 C# ERP 不一致时，先锁定仓库和文件，按旧源码逐项比对，只改差异"
+  default_prompt: "使用 $legacy-parity-fix 按旧系统修这个问题：仓库/分支、页面、现象、老系统对照、预期、不许动的范围如下。"
+policy:
+  allow_implicit_invocation: true
