@@ -1,0 +1,6 @@
+interface:
+  display_name: "视频分镜追问"
+  short_description: "分轮追问运镜、景别、光线等画面节点，确认分镜单后再写 Grok/Muse 视频提示词或出片"
+  default_prompt: "使用 $grill-video，把我描述的画面追问成分镜单，确认后再写首帧图和动态提示词。"
+policy:
+  allow_implicit_invocation: true

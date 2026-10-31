@@ -1,7 +1,8 @@
 # claude-plugins
 
-本机工具的自定义插件，每个子目录一个插件，各自的 README 写明安装方法。
+本机工具的自定义插件和技能，每个子目录一个，各自的 README 写明安装方法。
 
 | 插件 | 说明 |
 | --- | --- |
 | [antigravity-custom-theme](antigravity-custom-theme/) | Antigravity 浅色主题与中文主题切换器，更新后由守护进程自动恢复 |
+| [grill-video](grill-video/) | 视频分镜追问技能（Claude Code / Grok）：分轮问清运镜、景别、光线、声音，确认分镜单后再写 Grok / Muse 视频提示词或出片 |
