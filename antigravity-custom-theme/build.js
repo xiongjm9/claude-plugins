@@ -71,9 +71,24 @@ const studioMeta = {
   gradients: GRADIENTS,
 };
 
+const zh = require('./src/i18n-zh');
+// 多词键会额外做忽略大小写匹配；只差大小写却译法不同的键要提示，否则后写的会盖掉前面的
+const lowerSeen = new Map();
+const clashes = [];
+for (const [k, v] of Object.entries(zh.exact)) {
+  if (!k.includes(' ')) continue;
+  const lk = k.toLowerCase();
+  if (lowerSeen.has(lk) && lowerSeen.get(lk) !== v) clashes.push(k);
+  lowerSeen.set(lk, v);
+}
+if (clashes.length) console.warn('[!] 只差大小写但译法不同的词条:', clashes.join(' | '));
+zh.patterns.forEach(([re]) => new RegExp(re));
+console.log(`i18n: ${Object.keys(zh.exact).length} 条词条，${zh.patterns.length} 条模式`);
+
 let studio = src('studio.js')
   .replace('/*@@STUDIO_META@@*/', () => JSON.stringify(studioMeta))
-  .replace('/*@@STUDIO_CSS@@*/', () => JSON.stringify(src('studio.css')));
+  .replace('/*@@STUDIO_CSS@@*/', () => JSON.stringify(src('studio.css')))
+  .replace('/*@@I18N@@*/', () => src('i18n.js').replace('/*@@I18N_DICT@@*/', () => JSON.stringify({ exact: zh.exact, patterns: zh.patterns })));
 let out = src('engine.js')
   .replace('/*@@THEMES@@*/', () => themesExpr)
   .replace('/*@@STUDIO@@*/', () => studio);

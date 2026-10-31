@@ -16,7 +16,8 @@
         wallBlur: 0,
         fit: 'cover',        // cover | contain
         motion: 'standard',  // rich | standard | off
-        motionOverride: false // true = 系统开了「减少动态效果」时插件仍然播放动画
+        motionOverride: false, // true = 系统开了「减少动态效果」时插件仍然播放动画
+        lang: 'zh'           // zh = 界面汉化 | en = 保持英文
     };
     const MOTIONS = [
         { id: 'rich', name: '丰富' },
@@ -68,7 +69,8 @@
             wallBlur: clamp(p.wallBlur, 0, 40, DEFAULT_PREFS.wallBlur),
             fit: p.fit === 'contain' ? 'contain' : 'cover',
             motion: oneOf(p.motion, MOTIONS, DEFAULT_PREFS.motion),
-            motionOverride: p.motionOverride === true
+            motionOverride: p.motionOverride === true,
+            lang: p.lang === 'en' ? 'en' : 'zh'
         };
     }
 
@@ -156,6 +158,7 @@
         ensureStudioStyle();
         const root = document.documentElement;
         root.setAttribute('data-sk-motion', motionLevel());
+        i18nSync();
         const on = activeThemeId() !== 'stock';
         if (!on) {
             STUDIO_VARS.forEach((v) => root.style.removeProperty(v));
@@ -403,6 +406,11 @@
         const overrideBtn = h('button', { type: 'button', class: 'st-link', style: 'margin-left:4px', onclick: () => update({ motionOverride: !prefs.motionOverride }, { immediate: true }) });
         const motionSys = h('div', { class: 'st-note' }, h('span'), overrideBtn);
         const motionSec = h('div', { class: 'st-sec is-sep' }, h('div', { class: 'st-label' }, '动效'), motion, motionSys, motionNote);
+
+        // 界面语言（官方原版下也可用）
+        const langSeg = segmented('lang', [{ id: 'zh', name: '中文' }, { id: 'en', name: 'English' }], (v, e) => update({ lang: v }, { immediate: true, fade: true, event: e }));
+        const langSec = h('div', { class: 'st-sec is-sep' }, h('div', { class: 'st-label' }, '界面语言'), langSeg,
+            h('div', { class: 'st-note' }, '只翻译菜单、按钮和提示，不改会话内容和代码。'));
         ui.motionNote = motionNote;
         ui.motionSys = motionSys;
         ui.overrideBtn = overrideBtn;
@@ -410,10 +418,11 @@
         panel.append(
             h('div', { class: 'st-head' },
                 h('span', { class: 'st-title' }, '外观'),
-                h('button', { type: 'button', class: 'st-link', onclick: (e) => withTransition('fade', e, () => { prefs = normalizePrefs({ motion: prefs.motion, motionOverride: prefs.motionOverride }); savePrefs(true); studioApply(); studioRefresh(); }) }, '恢复默认')),
+                h('button', { type: 'button', class: 'st-link', onclick: (e) => withTransition('fade', e, () => { prefs = normalizePrefs({ motion: prefs.motion, motionOverride: prefs.motionOverride, lang: prefs.lang }); savePrefs(true); studioApply(); studioRefresh(); }) }, '恢复默认')),
             h('div', { class: 'st-sec', style: 'padding-top:4px' }, skins),
             stockNote,
             custom,
+            langSec,
             motionSec,
             h('div', { class: 'st-foot' }, '外观异常时按 ', h('kbd', null, 'Ctrl'), h('kbd', null, 'Alt'), h('kbd', null, 'Shift'), h('kbd', null, 'T'), ' 临时切回官方原版'));
         panel.querySelectorAll('.st-head, .st-sec, .st-note, .st-foot').forEach((el, i) => el.style.setProperty('--st-i', i));
@@ -482,6 +491,7 @@
         ui['slider-strength']._sync();
         ui['slider-wallBlur']._sync();
 
+        ui.lang._sync(prefs.lang);
         ui.motion._sync(prefs.motion);
         const sysReduced = systemReducedMotion();
         ui.motionSys.hidden = !sysReduced;
@@ -606,3 +616,5 @@
     }
     window.__agStudioHandlers.idle();
     // ===================== 外观面板 end =====================
+
+/*@@I18N@@*/

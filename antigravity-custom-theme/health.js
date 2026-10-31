@@ -41,6 +41,8 @@ const PAGE_CHECKS = `(async () => {
     ['纵向侧栏 .bg-sidebar.flex-col', 'div[class*="flex-col"][class*="bg-sidebar"]'],
   ];
   for (const [name, sel] of anchors) add('界面锚点：' + name, !!$(sel), sel);
+  const i18n = window.__agI18n;
+  if (i18n && i18n.lang === 'zh') add('界面汉化', i18n.active && i18n.count > 0, i18n.active ? '已翻译 ' + i18n.count + ' 处' : '没有启动', true);
   const composer = $('div[class*="bg-card-border"]:has(textarea), div[class*="bg-card-border"]:has([contenteditable="true"])');
   add('界面锚点：输入框', !!composer, composer ? '' : '当前页面没有输入框，或官方改了结构（进一个对话再查一次）', true);
   // 启动偏好：第一帧用的皮肤与 nativeStorage 里保存的一致，说明 boot.json 起作用
