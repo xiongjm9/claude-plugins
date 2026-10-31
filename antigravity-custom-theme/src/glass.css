@@ -22,6 +22,20 @@ html[data-sk-wall] #sk-wall { display: block; }
   filter: blur(var(--sk-wall-blur, 0px));
   transform: translateZ(0);
 }
+/* 丰富动效：壁纸缓慢漂移（只动 transform，窗口失焦或隐藏时暂停） */
+@keyframes sk-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1.06); }
+  33%  { transform: translate3d(-1.6%, 1.1%, 0) scale(1.09); }
+  66%  { transform: translate3d(1.2%, -0.8%, 0) scale(1.07); }
+  100% { transform: translate3d(0, 0, 0) scale(1.06); }
+}
+/* data-sk-motion 由 studio 按「系统减少动态效果 + 用户选择」算好，这里不再单独看媒体查询 */
+html[data-sk-motion="rich"] #sk-wall .sk-wall-img {
+  animation: sk-drift 48s ease-in-out infinite;
+  will-change: transform;
+}
+html[data-sk-motion="rich"][data-sk-idle] #sk-wall .sk-wall-img { animation-play-state: paused; }
+
 #sk-wall .sk-wall-veil {
   position: absolute;
   inset: 0;
@@ -53,10 +67,8 @@ html[data-sk-glass] :is([role="menu"], [role="listbox"], [data-radix-popper-cont
 /* 选区跟随强调色 */
 ::selection { background: color-mix(in srgb, var(--sk-accent) 22%, transparent); }
 
-/* 主按钮按下的物理反馈（减少动效时不做） */
-@media (prefers-reduced-motion: no-preference) {
-  html:not([data-sk-motion="off"]) button[class*="bg-primary"]:not(:disabled):active {
-    transform: scale(0.97);
-    transition: transform 120ms var(--sk-ease-out, ease-out);
-  }
+/* 主按钮按下的物理反馈（动效关闭时不做） */
+html[data-sk-motion]:not([data-sk-motion="off"]) button[class*="bg-primary"]:not(:disabled):active {
+  transform: scale(0.97);
+  transition: transform 120ms var(--sk-ease-out, ease-out);
 }

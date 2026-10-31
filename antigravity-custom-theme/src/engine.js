@@ -347,7 +347,16 @@ const THEME_PREF_KEY = 'custom-theme-id';
         const theme = getTheme(activeId);
         const dot = document.querySelector('#antigravity-theme-selector .st-dot');
         const label = document.getElementById('antigravity-theme-label');
-        if (dot) dot.style.setProperty('--st-dot', activeId === 'stock' ? '#8E8E93' : effectiveAccent());
+        if (dot) {
+            const c = activeId === 'stock' ? '#8E8E93' : effectiveAccent();
+            if (dot.dataset.c && dot.dataset.c !== c) {
+                dot.classList.remove('is-pop');
+                void dot.offsetWidth;
+                dot.classList.add('is-pop');
+            }
+            dot.dataset.c = c;
+            dot.style.setProperty('--st-dot', c);
+        }
         if (label) label.textContent = theme.name;
     }
 

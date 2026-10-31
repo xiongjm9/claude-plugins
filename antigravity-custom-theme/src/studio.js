@@ -14,8 +14,15 @@
         url: '',
         strength: 70,        // 壁纸可见度 %
         wallBlur: 0,
-        fit: 'cover'         // cover | contain
+        fit: 'cover',        // cover | contain
+        motion: 'standard',  // rich | standard | off
+        motionOverride: false // true = 系统开了「减少动态效果」时插件仍然播放动画
     };
+    const MOTIONS = [
+        { id: 'rich', name: '丰富' },
+        { id: 'standard', name: '标准' },
+        { id: 'off', name: '关闭' }
+    ];
     const MATERIALS = [
         { id: 'solid', name: '实色' },
         { id: 'frosted', name: '磨砂' },
@@ -59,7 +66,9 @@
             url: safeUrl(p.url),
             strength: clamp(p.strength, 0, 100, DEFAULT_PREFS.strength),
             wallBlur: clamp(p.wallBlur, 0, 40, DEFAULT_PREFS.wallBlur),
-            fit: p.fit === 'contain' ? 'contain' : 'cover'
+            fit: p.fit === 'contain' ? 'contain' : 'cover',
+            motion: oneOf(p.motion, MOTIONS, DEFAULT_PREFS.motion),
+            motionOverride: p.motionOverride === true
         };
     }
 
@@ -146,6 +155,7 @@
     function studioApply() {
         ensureStudioStyle();
         const root = document.documentElement;
+        root.setAttribute('data-sk-motion', motionLevel());
         const on = activeThemeId() !== 'stock';
         if (!on) {
             STUDIO_VARS.forEach((v) => root.style.removeProperty(v));
@@ -225,18 +235,52 @@
 
     const ui = {};
 
+    // 动效档位：系统开了「减少动态效果」（Windows 设置里关掉「动画效果」）时默认按关闭处理，用户可在面板里选择仍然开启
+    const reducedMotionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    const systemReducedMotion = () => !!(reducedMotionQuery && reducedMotionQuery.matches);
+    function motionLevel() {
+        if (systemReducedMotion() && !prefs.motionOverride) return 'off';
+        return prefs.motion;
+    }
+
+    // 整窗过渡（View Transitions）：换皮肤从点击处圆形展开，其它离散改动做短淡入淡出。
+    // 连续拖动（滑杆、取色器）不走这里，避免每一帧都截一次屏。
+    function withTransition(kind, e, fn) {
+        if (motionLevel() === 'off' || typeof document.startViewTransition !== 'function' || document.hidden) { fn(); return; }
+        const root = document.documentElement;
+        root.dataset.skVt = kind;
+        if (kind === 'reveal') {
+            const x = e && e.clientX ? e.clientX : window.innerWidth - 80;
+            const y = e && e.clientY ? e.clientY : 50;
+            const r = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
+            root.style.setProperty('--sk-vt-x', x + 'px');
+            root.style.setProperty('--sk-vt-y', y + 'px');
+            root.style.setProperty('--sk-vt-r', Math.ceil(r) + 'px');
+        }
+        try {
+            const vt = document.startViewTransition(fn);
+            vt.finished.finally(() => { if (root.dataset.skVt === kind) delete root.dataset.skVt; });
+        } catch (err) {
+            delete root.dataset.skVt;
+            fn();
+        }
+    }
+
     function update(patch, opts) {
-        Object.assign(prefs, patch);
-        prefs = normalizePrefs(prefs);
-        savePrefs(opts && opts.immediate);
-        studioApply();
-        studioRefresh();
+        const run = () => {
+            Object.assign(prefs, patch);
+            prefs = normalizePrefs(prefs);
+            savePrefs(opts && opts.immediate);
+            studioApply();
+            studioRefresh();
+        };
+        if (opts && opts.fade) withTransition('fade', opts.event, run); else run();
     }
 
     function segmented(key, options, onPick) {
         const thumb = h('span', { class: 'st-seg-thumb' });
         const seg = h('div', { class: 'st-seg', style: `--n:${options.length}` }, thumb,
-            options.map((o) => h('button', { type: 'button', 'data-v': o.id, onclick: () => onPick(o.id) }, o.name)));
+            options.map((o) => h('button', { type: 'button', 'data-v': o.id, onclick: (e) => onPick(o.id, e) }, o.name)));
         seg._sync = (v) => {
             const i = Math.max(0, options.findIndex((o) => o.id === v));
             seg.style.setProperty('--i', i);
@@ -269,9 +313,10 @@
         const skins = h('div', { class: 'st-skins' }, THEMES.map((t) => {
             const s = skinOf(t.id);
             const art = s
-                ? h('span', { class: 'st-skin-art', style: `--a-base:${s.base};--a-side:${s.sidebar};--a-line:${s.line};--a-text:${s.text};--a-accent:${s.accent}` }, h('i'), h('i'), h('b'))
-                : h('span', { class: 'st-skin-art', style: '--a-base:#F3F3F3;--a-side:#E8E8E8;--a-line:#D4D4D4;--a-text:#333;--a-accent:#007ACC' }, h('i'), h('i'), h('b'));
-            return h('button', { type: 'button', class: 'st-skin', 'data-id': t.id, onclick: () => { applyTheme(t.id); studioApply(); studioRefresh(); } },
+                ? h('span', { class: 'st-skin-art', style: `--a-base:${s.base};--a-side:${s.sidebar};--a-line:${s.line};--a-text:${s.text};--a-accent:${s.accent}` }, h('i'), h('i'), h('b'), h('em'))
+                : h('span', { class: 'st-skin-art', style: '--a-base:#F3F3F3;--a-side:#E8E8E8;--a-line:#D4D4D4;--a-text:#333;--a-accent:#007ACC' }, h('i'), h('i'), h('b'), h('em'));
+            return h('button', { type: 'button', class: 'st-skin', 'data-id': t.id, onclick: (e) => { if (t.id === activeThemeId()) return; withTransition('reveal', e, () => { applyTheme(t.id); studioRefresh(); }); },
+                onpointermove: tiltSkin, onpointerleave: untiltSkin },
                 art, h('span', { class: 'st-skin-name' }, t.name));
         }));
         ui.skins = skins;
@@ -288,23 +333,23 @@
         const picker = h('input', { type: 'color', 'aria-label': '自定义颜色' });
         picker.addEventListener('input', () => update({ accent: picker.value }));
         picker.addEventListener('change', () => savePrefs(true));
-        const autoSw = h('button', { type: 'button', class: 'st-sw is-auto', title: '跟随皮肤', 'data-v': '', onclick: () => update({ accent: '' }, { immediate: true }) });
+        const autoSw = h('button', { type: 'button', class: 'st-sw is-auto', title: '跟随皮肤', 'data-v': '', onclick: (e) => update({ accent: '' }, { immediate: true, fade: true, event: e }) });
         const swatches = h('div', { class: 'st-swatches' }, autoSw,
-            STUDIO.accents.map((a) => h('button', { type: 'button', class: 'st-sw', title: a.name, 'data-v': a.hex, style: `--c:${a.hex}`, onclick: () => update({ accent: a.hex }, { immediate: true }) })),
+            STUDIO.accents.map((a) => h('button', { type: 'button', class: 'st-sw', title: a.name, 'data-v': a.hex, style: `--c:${a.hex}`, onclick: (e) => update({ accent: a.hex }, { immediate: true, fade: true, event: e }) })),
             h('label', { class: 'st-sw is-custom', title: '自定义' }, picker));
         const accentNote = h('div', { class: 'st-note' });
         ui.accent = { swatches, autoSw, hex, picker, note: accentNote };
 
         // 材质
-        const material = segmented('material', MATERIALS, (v) => update({ material: v }, { immediate: true }));
+        const material = segmented('material', MATERIALS, (v, e) => update({ material: v }, { immediate: true, fade: true, event: e }));
         const blurRow = slider('blur', '模糊', 0, 60, 'px');
         const opRow = slider('opacity', '表面不透明度', 30, 100, '%');
 
         // 壁纸
-        const wall = segmented('wall', WALLS, (v) => update({ wall: v }, { immediate: true }));
+        const wall = segmented('wall', WALLS, (v, e) => update({ wall: v }, { immediate: true, fade: true, event: e }));
         const grads = h('div', { class: 'st-grads', style: 'margin-top:10px' },
-            h('button', { type: 'button', class: 'st-grad', 'data-v': 'auto', title: '跟随皮肤', style: '--g:var(--sk-base)', onclick: () => update({ gradient: 'auto' }, { immediate: true }) }, '自动'),
-            STUDIO.gradients.map((g) => h('button', { type: 'button', class: 'st-grad', 'data-v': g.id, title: g.name, style: `--g:${g.css}`, onclick: () => update({ gradient: g.id }, { immediate: true }) })));
+            h('button', { type: 'button', class: 'st-grad', 'data-v': 'auto', title: '跟随皮肤', style: '--g:var(--sk-base)', onclick: (e) => update({ gradient: 'auto' }, { immediate: true, fade: true, event: e }) }, '自动'),
+            STUDIO.gradients.map((g) => h('button', { type: 'button', class: 'st-grad', 'data-v': g.id, title: g.name, style: `--g:${g.css}`, onclick: (e) => update({ gradient: g.id }, { immediate: true, fade: true, event: e }) })));
         const fileInput = h('input', { type: 'file', accept: 'image/*', hidden: true });
         const fileName = h('span');
         fileInput.addEventListener('change', () => {
@@ -338,7 +383,7 @@
         };
         urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') commitUrl(); });
         const urlRow = h('div', null, h('div', { class: 'st-field' }, urlInput, h('button', { type: 'button', class: 'st-btn is-primary', onclick: commitUrl }, '应用')), urlNote);
-        const fitSeg = segmented('fit', [{ id: 'cover', name: '填满' }, { id: 'contain', name: '完整' }], (v) => update({ fit: v }, { immediate: true }));
+        const fitSeg = segmented('fit', [{ id: 'cover', name: '填满' }, { id: 'contain', name: '完整' }], (v, e) => update({ fit: v }, { immediate: true, fade: true, event: e }));
         const fitRow = h('div', { class: 'st-row' }, fitSeg);
         const strengthRow = slider('strength', '壁纸强度', 0, 100, '%');
         const wallBlurRow = slider('wallBlur', '壁纸模糊', 0, 40, 'px');
@@ -352,15 +397,47 @@
             h('div', { class: 'st-sec' }, h('div', { class: 'st-label' }, '壁纸'), wall, grads, fileRow, urlRow, fitRow, strengthRow, wallBlurRow));
         ui.custom = custom;
 
+        // 动效
+        const motion = segmented('motion', MOTIONS, (v) => update({ motion: v }, { immediate: true }));
+        const motionNote = h('div', { class: 'st-note' });
+        const overrideBtn = h('button', { type: 'button', class: 'st-link', style: 'margin-left:4px', onclick: () => update({ motionOverride: !prefs.motionOverride }, { immediate: true }) });
+        const motionSys = h('div', { class: 'st-note' }, h('span'), overrideBtn);
+        const motionSec = h('div', { class: 'st-sec is-sep' }, h('div', { class: 'st-label' }, '动效'), motion, motionSys, motionNote);
+        ui.motionNote = motionNote;
+        ui.motionSys = motionSys;
+        ui.overrideBtn = overrideBtn;
+
         panel.append(
             h('div', { class: 'st-head' },
                 h('span', { class: 'st-title' }, '外观'),
-                h('button', { type: 'button', class: 'st-link', onclick: () => { prefs = normalizePrefs({}); savePrefs(true); studioApply(); studioRefresh(); } }, '恢复默认')),
+                h('button', { type: 'button', class: 'st-link', onclick: (e) => withTransition('fade', e, () => { prefs = normalizePrefs({ motion: prefs.motion, motionOverride: prefs.motionOverride }); savePrefs(true); studioApply(); studioRefresh(); }) }, '恢复默认')),
             h('div', { class: 'st-sec', style: 'padding-top:4px' }, skins),
             stockNote,
             custom,
+            motionSec,
             h('div', { class: 'st-foot' }, '外观异常时按 ', h('kbd', null, 'Ctrl'), h('kbd', null, 'Alt'), h('kbd', null, 'Shift'), h('kbd', null, 'T'), ' 临时切回官方原版'));
+        panel.querySelectorAll('.st-head, .st-sec, .st-note, .st-foot').forEach((el, i) => el.style.setProperty('--st-i', i));
         return panel;
+    }
+
+    // 皮肤卡片跟随指针轻微倾斜，高光跟着走
+    function tiltSkin(e) {
+        if (motionLevel() === 'off' || e.pointerType === 'touch') return;
+        const art = e.currentTarget.querySelector('.st-skin-art');
+        const r = art.getBoundingClientRect();
+        const px = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+        const py = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+        art.style.setProperty('--rx', ((0.5 - py) * 10).toFixed(2) + 'deg');
+        art.style.setProperty('--ry', ((px - 0.5) * 12).toFixed(2) + 'deg');
+        art.style.setProperty('--mx', (px * 100).toFixed(1) + '%');
+        art.style.setProperty('--my', (py * 100).toFixed(1) + '%');
+        art.classList.add('is-tilt');
+    }
+    function untiltSkin(e) {
+        const art = e.currentTarget.querySelector('.st-skin-art');
+        art.classList.remove('is-tilt');
+        art.style.removeProperty('--rx');
+        art.style.removeProperty('--ry');
     }
 
     function studioRefresh() {
@@ -404,6 +481,17 @@
         w.wallBlurRow.hidden = prefs.wall === 'none';
         ui['slider-strength']._sync();
         ui['slider-wallBlur']._sync();
+
+        ui.motion._sync(prefs.motion);
+        const sysReduced = systemReducedMotion();
+        ui.motionSys.hidden = !sysReduced;
+        ui.motionSys.firstChild.textContent = prefs.motionOverride
+            ? 'Windows 关闭了动画效果，插件仍按上面的档位播放。'
+            : 'Windows 关闭了动画效果，插件动画跟着关闭。';
+        ui.overrideBtn.textContent = prefs.motionOverride ? '改回跟随系统' : '仍然开启';
+        const level = motionLevel();
+        ui.motionNote.textContent = level === 'rich' ? '多了壁纸缓慢漂移，窗口在前台时会持续占用少量显卡。'
+            : level === 'off' && !sysReduced ? '只关掉插件自己的动画，Antigravity 原生动画不受影响。' : '';
     }
 
     function positionStudio(panel, btn) {
@@ -435,10 +523,17 @@
         const old = document.getElementById('ag-theme-toast');
         if (old) old.remove();
         const t = h('div', { id: 'ag-theme-toast', role: 'status' }, msg);
-        t.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:2147483600;max-width:min(560px,calc(100vw - 32px));padding:10px 16px;border-radius:12px;background:rgba(29,29,31,.92);color:#fff;font:500 12.5px/1.45 system-ui,sans-serif;box-shadow:0 12px 32px -8px rgba(0,0,0,.35);-webkit-app-region:no-drag';
-        t.onclick = () => t.remove();
+        t.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:2147483600;max-width:min(560px,calc(100vw - 32px));padding:10px 16px;border-radius:12px;background:rgba(29,29,31,.86);-webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6);color:#fff;font:500 12.5px/1.45 system-ui,sans-serif;box-shadow:0 0 0 .5px rgba(255,255,255,.12) inset,0 12px 32px -8px rgba(0,0,0,.35);-webkit-app-region:no-drag';
+        const animate = motionLevel() !== 'off' && typeof t.animate === 'function';
+        const close = () => {
+            if (!t.isConnected) return;
+            if (!animate) { t.remove(); return; }
+            t.animate([{ opacity: 1, transform: 'translateX(-50%)' }, { opacity: 0, transform: 'translate(-50%, 8px) scale(0.98)' }], { duration: 180, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'forwards' }).onfinish = () => t.remove();
+        };
+        t.onclick = close;
         document.body.appendChild(t);
-        setTimeout(() => t.remove(), 4000);
+        if (animate) t.animate([{ opacity: 0, transform: 'translate(-50%, 14px) scale(0.96)' }, { opacity: 1, transform: 'translateX(-50%)' }], { duration: 420, easing: 'cubic-bezier(0.34, 1.36, 0.64, 1)' });
+        setTimeout(close, 4000);
     }
 
     // 应急：Ctrl+Alt+Shift+T 在官方原版和上一个皮肤之间切换，面板打不开时也能用
@@ -456,6 +551,7 @@
             toast('已恢复「' + getTheme(back).name + '」。');
         }
         studioRefresh();
+        // 应急切换刻意不做过渡动画：界面出问题时要立刻生效
     }
 
     // 给守护进程读：当前皮肤、偏好、待保存的壁纸
@@ -492,7 +588,10 @@
             const p = document.getElementById('ag-studio');
             if (e.key === 'Escape' && p && p.classList.contains('is-open')) { studioToggle(false); const b = document.getElementById('antigravity-theme-btn'); if (b) b.focus(); }
         },
-        resize() { studioToggle(false); }
+        resize() { studioToggle(false); },
+        // 窗口失焦或隐藏时暂停壁纸漂移，不在后台白耗显卡
+        idle() { document.documentElement.toggleAttribute('data-sk-idle', document.hidden || !document.hasFocus()); },
+        motionPref() { studioApply(); studioRefresh(); }
     };
     if (!window.__agStudioForwarders) {
         window.__agStudioForwarders = true;
@@ -500,5 +599,10 @@
         document.addEventListener('pointerdown', fwd('pointerdown'), true);
         document.addEventListener('keydown', fwd('keydown'), true);
         window.addEventListener('resize', fwd('resize'));
+        window.addEventListener('blur', fwd('idle'));
+        window.addEventListener('focus', fwd('idle'));
+        document.addEventListener('visibilitychange', fwd('idle'));
+        if (reducedMotionQuery && reducedMotionQuery.addEventListener) reducedMotionQuery.addEventListener('change', fwd('motionPref'));
     }
+    window.__agStudioHandlers.idle();
     // ===================== 外观面板 end =====================

@@ -6,3 +6,4 @@
 - 皮肤只改 `src/skins.js` 的 token；结构样式在 `src/base.css`，颜色只能用 `--sk-*` 变量。
 - 硬约束：`--sidebar` 不透明实色（原生标题栏读它）、顶部 35px 标题带保持实色、嵌套侧栏透明、sticky 遮罩、媒体模态 absolute 胶囊，不可破坏。
 - 面板样式限定在 `#ag-studio` 内，不用 `role="menu|option|dialog"`（base.css 对它们有全局规则）。
+- 插件自己的动画只看 `html[data-sk-motion]`（studio 已合并系统「减少动态效果」与用户选择），不要再直接写 `prefers-reduced-motion`；只动 transform / opacity，连续拖动不走 View Transition。
