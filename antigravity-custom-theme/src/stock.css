@@ -1,0 +1,61 @@
+/* === 官方原版：看图与流程图模态实底化（右上角系统按钮区同色贴合的取色来源） === */
+body.theme-light [data-testid="media-modal"],
+body:not(.dark):not(.theme-dark):not(.dark-theme) [data-testid="media-modal"],
+body.theme-light div[class*="animate-backdropFadeIn"]:has(~ div [data-testid="mermaid-lightbox-viewport"]),
+body.theme-light div[class*="animate-backdropFadeIn"]:has(~ * [data-testid="mermaid-lightbox-viewport"]),
+body:not(.dark):not(.theme-dark):not(.dark-theme) div[class*="animate-backdropFadeIn"]:has(~ div [data-testid="mermaid-lightbox-viewport"]),
+body:not(.dark):not(.theme-dark):not(.dark-theme) div[class*="animate-backdropFadeIn"]:has(~ * [data-testid="mermaid-lightbox-viewport"]) {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  inset: 0 !important;
+  background-color: #E4E4E7 !important;
+  opacity: 1 !important;
+  z-index: 5000 !important;
+}
+body.theme-light div[class*="animate-modalFadeIn"]:has([data-testid="mermaid-lightbox-viewport"]),
+body:not(.dark):not(.theme-dark):not(.dark-theme) div[class*="animate-modalFadeIn"]:has([data-testid="mermaid-lightbox-viewport"]) {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  inset: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  z-index: 5001 !important;
+}
+body.theme-dark [data-testid="media-modal"],
+body.dark [data-testid="media-modal"],
+body.dark-theme [data-testid="media-modal"],
+body.theme-dark div[class*="animate-backdropFadeIn"]:has(~ div [data-testid="mermaid-lightbox-viewport"]),
+body.theme-dark div[class*="animate-backdropFadeIn"]:has(~ * [data-testid="mermaid-lightbox-viewport"]),
+body.dark div[class*="animate-backdropFadeIn"]:has(~ div [data-testid="mermaid-lightbox-viewport"]),
+body.dark div[class*="animate-backdropFadeIn"]:has(~ * [data-testid="mermaid-lightbox-viewport"]),
+body.dark-theme div[class*="animate-backdropFadeIn"]:has(~ div [data-testid="mermaid-lightbox-viewport"]),
+body.dark-theme div[class*="animate-backdropFadeIn"]:has(~ * [data-testid="mermaid-lightbox-viewport"]) {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  inset: 0 !important;
+  background-color: #18181B !important;
+  opacity: 1 !important;
+  z-index: 5000 !important;
+}
+body.theme-dark div[class*="animate-modalFadeIn"]:has([data-testid="mermaid-lightbox-viewport"]),
+body.dark div[class*="animate-modalFadeIn"]:has([data-testid="mermaid-lightbox-viewport"]),
+body.dark-theme div[class*="animate-modalFadeIn"]:has([data-testid="mermaid-lightbox-viewport"]) {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  inset: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  z-index: 5001 !important;
+}

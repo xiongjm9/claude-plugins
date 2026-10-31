@@ -1,0 +1,62 @@
+/* === 材质与壁纸（studio 写入 html 的 data-sk-* 与内联变量；只随自定义皮肤注入） ===
+   - 顶部 35px 标题带保持实色：它与 Windows 原生按钮区同色（--sidebar 只能是不透明实色）
+   - 壁纸层 #sk-wall 固定在标题带下方，z-index:-1 落在 body 内容之后、html 底漆之上 */
+
+#sk-wall {
+  position: fixed;
+  inset: 35px 0 0 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  display: none;
+  contain: strict;
+}
+html[data-sk-wall] #sk-wall { display: block; }
+#sk-wall .sk-wall-img {
+  position: absolute;
+  inset: calc(var(--sk-wall-blur, 0px) * -2);
+  background: var(--sk-wall-bg, none);
+  background-position: var(--sk-wall-pos, center);
+  background-size: var(--sk-wall-size, cover);
+  background-repeat: no-repeat;
+  filter: blur(var(--sk-wall-blur, 0px));
+  transform: translateZ(0);
+}
+#sk-wall .sk-wall-veil {
+  position: absolute;
+  inset: 0;
+  background: var(--sk-base);
+  opacity: var(--sk-wall-veil, 0.4);
+}
+
+/* 有壁纸时：纵向侧栏与吸顶标头改成玻璃，让壁纸透出来 */
+html[data-sk-wall] div[class*="flex-col"][class*="bg-sidebar"]:not(div[class*="flex-col"][class*="bg-sidebar"] *) {
+  background-color: color-mix(in srgb, var(--sk-sidebar) calc(72% * var(--sk-fill, 1)), transparent) !important;
+  background-image: none !important;
+  backdrop-filter: var(--sk-filter) !important;
+  -webkit-backdrop-filter: var(--sk-filter) !important;
+  border-right-color: color-mix(in srgb, var(--sk-line) 70%, transparent) !important;
+}
+html[data-sk-wall] div[class*="sticky"][class*="top-0"]:has(input[data-testid="customizations-search"]) {
+  background-color: color-mix(in srgb, var(--sk-base) 78%, transparent) !important;
+  background-image: none !important;
+  backdrop-filter: var(--sk-filter) !important;
+  -webkit-backdrop-filter: var(--sk-filter) !important;
+}
+
+/* 玻璃材质：浮层、菜单、下拉跟着磨砂 */
+html[data-sk-glass] :is([role="menu"], [role="listbox"], [data-radix-popper-content-wrapper] > [data-side], [data-base-ui-portal] [data-side], div[data-mention-menu]) {
+  backdrop-filter: var(--sk-filter) !important;
+  -webkit-backdrop-filter: var(--sk-filter) !important;
+}
+
+/* 选区跟随强调色 */
+::selection { background: color-mix(in srgb, var(--sk-accent) 22%, transparent); }
+
+/* 主按钮按下的物理反馈（减少动效时不做） */
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-sk-motion="off"]) button[class*="bg-primary"]:not(:disabled):active {
+    transform: scale(0.97);
+    transition: transform 120ms var(--sk-ease-out, ease-out);
+  }
+}
