@@ -3,7 +3,6 @@
     // 页面 origin 端口每次启动都变，localStorage 不可靠，主存走 nativeStorage（与 THEME_PREF_KEY 同一套）。
     const STUDIO = /*@@STUDIO_META@@*/;
     const PREFS_KEY = 'custom-theme-studio';
-    const WALL_IMG_KEY = 'custom-theme-wall-image';
     const STUDIO_CSS = /*@@STUDIO_CSS@@*/;
     const DEFAULT_PREFS = {
         accent: '',          // 空 = 跟随皮肤
@@ -30,7 +29,11 @@
     ];
 
     let prefs = Object.assign({}, DEFAULT_PREFS);
-    let wallImage = '';
+    // 本地壁纸存在 %APPDATA%\Antigravity\custom-theme\wall.webp，启动时随 boot 注入，不进 nativeStorage
+    let wallImage = typeof BOOT.wallImage === 'string' && /^data:image\/webp;base64,/.test(BOOT.wallImage) ? BOOT.wallImage : '';
+    let wallUpload = null;
+    let wallUploadTimer = null;
+    let wallStatus = '';
     let nativeTimer = null;
 
     const clamp = (v, lo, hi, d) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
@@ -86,7 +89,6 @@
                     try { prefs = normalizePrefs(JSON.parse(items[PREFS_KEY])); } catch (e) {}
                     try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {}
                 }
-                wallImage = safeUrl(items[WALL_IMG_KEY] || '');
                 studioApply();
                 studioRefresh();
             }).catch(() => {});
@@ -308,17 +310,21 @@
         fileInput.addEventListener('change', () => {
             const f = fileInput.files && fileInput.files[0];
             if (!f) return;
-            fileName.textContent = '处理中…';
+            wallStatus = '处理中…';
+            studioRefresh();
             readWallFile(f).then((data) => {
+                // 立即显示；文件由守护进程写成 wall.webp（页面自己写不了文件），下次启动随 boot 一起注入
                 wallImage = data;
-                try {
-                    if (window.nativeStorage && typeof window.nativeStorage.updateItems === 'function') {
-                        Promise.resolve(window.nativeStorage.updateItems({ [WALL_IMG_KEY]: data })).catch(() => {});
-                    }
-                } catch (e) {}
-                fileName.textContent = f.name;
+                wallUpload = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), data, name: f.name };
+                wallStatus = `${f.name} · 保存中…`;
+                clearTimeout(wallUploadTimer);
+                wallUploadTimer = setTimeout(() => {
+                    if (!wallUpload) return;
+                    wallStatus = `${f.name} · 暂未保存，守护进程运行后会自动保存`;
+                    studioRefresh();
+                }, 15000);
                 update({ wall: 'image' }, { immediate: true });
-            }).catch((e) => { fileName.textContent = e.message; });
+            }).catch((e) => { wallStatus = e.message; studioRefresh(); });
             fileInput.value = '';
         });
         const fileRow = h('div', { class: 'st-file' }, h('button', { type: 'button', class: 'st-btn', onclick: () => fileInput.click() }, '选择图片…'), fileName, fileInput);
@@ -352,7 +358,8 @@
                 h('button', { type: 'button', class: 'st-link', onclick: () => { prefs = normalizePrefs({}); savePrefs(true); studioApply(); studioRefresh(); } }, '恢复默认')),
             h('div', { class: 'st-sec', style: 'padding-top:4px' }, skins),
             stockNote,
-            custom);
+            custom,
+            h('div', { class: 'st-foot' }, '外观异常时按 ', h('kbd', null, 'Ctrl'), h('kbd', null, 'Alt'), h('kbd', null, 'Shift'), h('kbd', null, 'T'), ' 临时切回官方原版'));
         return panel;
     }
 
@@ -388,8 +395,7 @@
         w.grads.hidden = prefs.wall !== 'gradient';
         w.grads.querySelectorAll('.st-grad').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === prefs.gradient)));
         w.fileRow.hidden = prefs.wall !== 'image';
-        if (prefs.wall === 'image' && !wallImage && !w.fileName.textContent) w.fileName.textContent = '还没有选择图片';
-        if (wallImage && w.fileName.textContent === '还没有选择图片') w.fileName.textContent = '已保存的图片';
+        w.fileName.textContent = wallStatus || (wallImage ? '已保存的图片' : '还没有选择图片');
         w.urlRow.hidden = prefs.wall !== 'url';
         if (document.activeElement !== w.urlInput) w.urlInput.value = prefs.url;
         ui.fit._sync(prefs.fit);
@@ -425,17 +431,74 @@
         if (btn) btn.setAttribute('aria-expanded', String(open));
     }
 
-    if (!window.__antigravityStudioListeners) {
-        window.__antigravityStudioListeners = true;
-        document.addEventListener('pointerdown', (e) => {
+    function toast(msg) {
+        const old = document.getElementById('ag-theme-toast');
+        if (old) old.remove();
+        const t = h('div', { id: 'ag-theme-toast', role: 'status' }, msg);
+        t.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:2147483600;max-width:min(560px,calc(100vw - 32px));padding:10px 16px;border-radius:12px;background:rgba(29,29,31,.92);color:#fff;font:500 12.5px/1.45 system-ui,sans-serif;box-shadow:0 12px 32px -8px rgba(0,0,0,.35);-webkit-app-region:no-drag';
+        t.onclick = () => t.remove();
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 4000);
+    }
+
+    // 应急：Ctrl+Alt+Shift+T 在官方原版和上一个皮肤之间切换，面板打不开时也能用
+    const LAST_SKIN_KEY = 'custom-theme-last-skin';
+    function toggleSafeMode() {
+        const cur = activeThemeId();
+        if (cur !== 'stock') {
+            try { localStorage.setItem(LAST_SKIN_KEY, cur); } catch (e) {}
+            applyTheme('stock');
+            toast('已临时切回官方原版。再按 Ctrl+Alt+Shift+T 恢复。');
+        } else {
+            let back = 'aluminum';
+            try { back = resolveThemeId(localStorage.getItem(LAST_SKIN_KEY)); } catch (e) {}
+            applyTheme(back);
+            toast('已恢复「' + getTheme(back).name + '」。');
+        }
+        studioRefresh();
+    }
+
+    // 给守护进程读：当前皮肤、偏好、待保存的壁纸
+    window.__agThemeState = {
+        get theme() { return activeThemeId(); },
+        get prefs() { return prefs; },
+        get wallUploadId() { return wallUpload ? wallUpload.id : null; },
+        get wallUpload() { return wallUpload; },
+        ackWall(id, res) {
+            if (!wallUpload || wallUpload.id !== id) return false;
+            const name = wallUpload.name;
+            wallUpload = null;
+            clearTimeout(wallUploadTimer);
+            wallStatus = res && res.ok ? `${name} · 已保存` : `${name} · 保存失败：${(res && res.error) || '未知错误'}`;
+            studioRefresh();
+            return true;
+        }
+    };
+
+    // 监听只挂一次，转发到当前这份引擎，热替换后不会有两份旧闭包同时响应
+    window.__agStudioHandlers = {
+        pointerdown(e) {
             const p = document.getElementById('ag-studio');
             const b = document.getElementById('antigravity-theme-btn');
             if (p && p.classList.contains('is-open') && !p.contains(e.target) && !(b && b.contains(e.target))) studioToggle(false);
-        }, true);
-        document.addEventListener('keydown', (e) => {
+        },
+        keydown(e) {
+            if (e.ctrlKey && e.altKey && e.shiftKey && !e.metaKey && (e.key === 'T' || e.key === 't' || e.code === 'KeyT')) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleSafeMode();
+                return;
+            }
             const p = document.getElementById('ag-studio');
             if (e.key === 'Escape' && p && p.classList.contains('is-open')) { studioToggle(false); const b = document.getElementById('antigravity-theme-btn'); if (b) b.focus(); }
-        });
-        window.addEventListener('resize', () => studioToggle(false));
+        },
+        resize() { studioToggle(false); }
+    };
+    if (!window.__agStudioForwarders) {
+        window.__agStudioForwarders = true;
+        const fwd = (name) => (e) => { const hd = window.__agStudioHandlers; if (hd && hd[name]) hd[name](e); };
+        document.addEventListener('pointerdown', fwd('pointerdown'), true);
+        document.addEventListener('keydown', fwd('keydown'), true);
+        window.addEventListener('resize', fwd('resize'));
     }
     // ===================== 外观面板 end =====================

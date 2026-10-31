@@ -9,7 +9,9 @@ Antigravity 的外观插件：五套浅色皮肤，加一个可以自己调强�
 - **材质**：实色 / 磨砂 / 通透，可调模糊和表面不透明度
 - **壁纸**：无 / 渐变（自动跟随皮肤或 5 款预设）/ 本地图片 / 图片链接，可调强度、模糊和填充方式
 
-偏好存在 Antigravity 自己的 nativeStorage 里，换皮肤不会丢。本地图片会缩到 2560px 以内转成 WebP 再保存。
+偏好存在 Antigravity 自己的 nativeStorage 里，换皮肤不会丢。守护进程同时把它写进运行目录的 `boot.json`，启动时随主题一起注入，第一帧就是你选的样子，不会先闪一下默认皮肤。本地图片缩到 2560px 以内转成 WebP，由守护进程存成运行目录里的 `wall.webp`，不塞进 Antigravity 自己的 `app_storage.json`。
+
+外观出问题时按 `Ctrl+Alt+Shift+T` 临时切回官方原版，再按一次恢复。找不到标题栏工具区时，入口按钮会改挂在标题栏下方右侧。
 
 ## 安装
 
@@ -45,6 +47,7 @@ Antigravity 每次更新都会整体替换 `app.asar`，钩子随之丢失。守
 
 ## 其它命令
 
+- `node check.js`：健康检查。Antigravity 更新后看主题是否还完整（钩子、守护进程、界面锚点、强调色、标题栏底色等），有失败项退出码为 1。守护进程在每次 `app.asar` 变化后会自动跑一次，有失败项会在窗口底部提示。
 - `node inject_live.js`：改完后不重启直接刷入正在运行的 Antigravity。
 - `node install_permanent.js --uninstall`：停守护、删自启、还原 `app.asar`。
 

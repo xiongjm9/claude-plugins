@@ -19,6 +19,16 @@
     })();
 
 const THEME_PREF_KEY = 'custom-theme-id';
+
+    // 启动偏好：asar 钩子 / 守护进程在本脚本前注入 window.__agThemeBoot（来自 boot.json 与 wall.webp）。
+    // 页面端口每次启动都变，localStorage 总是空的；先用它填上，第一帧就是保存的皮肤，不用等 nativeStorage。
+    const BOOT = (window.__agThemeBoot && typeof window.__agThemeBoot === 'object') ? window.__agThemeBoot : {};
+    window.__agThemeBootLoaded = !!(BOOT.theme || BOOT.studio);
+    try {
+        if (BOOT.theme && !localStorage.getItem('antigravity_selected_theme')) localStorage.setItem('antigravity_selected_theme', BOOT.theme);
+        if (BOOT.studio && !localStorage.getItem('custom-theme-studio')) localStorage.setItem('custom-theme-studio', JSON.stringify(BOOT.studio));
+    } catch (e) {}
+
     let lastActiveId = null;
     let lastIsDark = null;
     let lastAppliedOverlay = null;
@@ -344,15 +354,19 @@ const THEME_PREF_KEY = 'custom-theme-id';
         if (label) label.textContent = theme.name;
     }
 
-    // 挂载右上角主题选择器
+    // 挂载右上角主题选择器。官方改版后找不到工具区时，主界面出来 3 秒后改挂到标题栏下方的备用位置，保证面板始终能打开
+    let engineReadyAt = 0;
     function mountThemeSelector() {
         const toolbar = document.querySelector('[data-testid="pane-titlebar-toolbar"]');
-        if (!toolbar) return;
-
         const existing = document.getElementById('antigravity-theme-selector');
-        if (existing) {
-            if (toolbar.contains(existing)) return;
-            existing.remove();
+        if (toolbar) {
+            if (existing) {
+                if (toolbar.contains(existing)) return;
+                existing.remove();
+            }
+        } else {
+            if (existing) return;
+            if (!document.querySelector('[data-testid="title-menu-bar"]') || !engineReadyAt || Date.now() - engineReadyAt < 3000) return;
         }
         const legacy = document.getElementById('antigravity-theme-dropdown');
         if (legacy) legacy.remove();
@@ -373,8 +387,14 @@ const THEME_PREF_KEY = 'custom-theme-id';
         btn.onclick = (e) => { e.stopPropagation(); studioToggle(); };
 
         container.appendChild(btn);
-        // 插在最左边（⋮ 菜单的前面）
-        toolbar.insertBefore(container, toolbar.firstChild);
+        if (toolbar) {
+            // 插在最左边（⋮ 菜单的前面）
+            toolbar.insertBefore(container, toolbar.firstChild);
+        } else {
+            container.dataset.fallback = '';
+            container.style.cssText += 'position: fixed; top: 42px; right: 16px; z-index: 2147482000;';
+            document.body.appendChild(container);
+        }
         updateSelectorUI(currentId);
         if (currentId !== 'stock') {
             enforceTitleBarColor(true);
@@ -386,8 +406,7 @@ const THEME_PREF_KEY = 'custom-theme-id';
     // 页面 origin 端口每次启动都变，localStorage 不可靠，主存走 nativeStorage（与 THEME_PREF_KEY 同一套）。
     const STUDIO = {"skins":[{"id":"aluminum","wall":"aurora","base":"#F5F5F7","base2":"#F7F7F9","sidebar":"#FBFBFD","text":"#1D1D1F","text2":"#6E6E73","line":"#E3E3E8","accent":"#0071E3"},{"id":"porcelain","wall":"mono","base":"#FAFAFA","base2":"#FCFCFC","sidebar":"#FFFFFF","text":"#171717","text2":"#666666","line":"#EBEBEB","accent":"#171717"},{"id":"fog","wall":"bay","base":"#F2F5F9","base2":"#F5F7FB","sidebar":"#FAFBFD","text":"#16202E","text2":"#5B6778","line":"#DEE4EC","accent":"#3157D5"},{"id":"sand","wall":"dune","base":"#F6F4F0","base2":"#F8F6F3","sidebar":"#FCFBF9","text":"#252321","text2":"#6B665F","line":"#E6E1D9","accent":"#A4492A"},{"id":"sage","wall":"aurora","base":"#F3F6F4","base2":"#F6F8F6","sidebar":"#FBFCFB","text":"#18231E","text2":"#5A6962","line":"#DBE3DE","accent":"#2B7556"}],"accents":[{"hex":"#0071E3","name":"蓝"},{"hex":"#5856D6","name":"靛"},{"hex":"#8944C8","name":"紫"},{"hex":"#C8336A","name":"莓"},{"hex":"#D0342C","name":"红"},{"hex":"#B5520B","name":"橙"},{"hex":"#8A6100","name":"琥珀"},{"hex":"#1F7F48","name":"绿"},{"hex":"#0B7480","name":"青"},{"hex":"#3A3A3C","name":"石墨"}],"gradients":[{"id":"dawn","name":"晨曦","css":"radial-gradient(120% 90% at 0% 0%, #FDE2D6 0%, transparent 55%), radial-gradient(90% 80% at 100% 10%, #E4DDFB 0%, transparent 60%), radial-gradient(100% 90% at 60% 100%, #FBEFE3 0%, transparent 60%), #F7F3F1"},{"id":"bay","name":"海湾","css":"radial-gradient(110% 90% at 10% 0%, #D3E6FB 0%, transparent 58%), radial-gradient(90% 90% at 100% 30%, #D2F1EC 0%, transparent 60%), radial-gradient(100% 80% at 40% 100%, #E7EEFA 0%, transparent 60%), #F1F5F9"},{"id":"aurora","name":"极光","css":"radial-gradient(90% 80% at 0% 20%, #D5F3E6 0%, transparent 58%), radial-gradient(90% 90% at 70% 0%, #DCE3FD 0%, transparent 58%), radial-gradient(100% 90% at 100% 100%, #EBDDFA 0%, transparent 60%), #F3F5F8"},{"id":"dune","name":"沙丘","css":"radial-gradient(120% 90% at 100% 0%, #F6E5CF 0%, transparent 58%), radial-gradient(100% 90% at 0% 100%, #EFE4DA 0%, transparent 60%), #F7F4EF"},{"id":"mono","name":"素灰","css":"radial-gradient(120% 100% at 50% 0%, #FFFFFF 0%, transparent 60%), linear-gradient(180deg, #F2F2F4 0%, #E9E9EC 100%)"}]};
     const PREFS_KEY = 'custom-theme-studio';
-    const WALL_IMG_KEY = 'custom-theme-wall-image';
-    const STUDIO_CSS = "/* === 外观面板（Studio）与标题栏入口 ===\n   独立注入，官方原版下也在。所有规则限定在 #ag-studio / #antigravity-theme-selector 内。\n   视觉参照 macOS 控制中心：厚磨砂、发丝边、分段控件滑块、弹簧缓动。 */\n\n#ag-studio, #antigravity-theme-selector {\n  --st-ease: cubic-bezier(0.32, 0.72, 0, 1);\n  --st-spring: cubic-bezier(0.34, 1.36, 0.64, 1);\n  --st-text: var(--sk-text, #1D1D1F);\n  --st-text-2: var(--sk-text-2, #6E6E73);\n  --st-line: color-mix(in srgb, var(--st-text) 9%, transparent);\n  --st-fill: color-mix(in srgb, var(--st-text) 5%, transparent);\n  --st-fill-2: color-mix(in srgb, var(--st-text) 8%, transparent);\n  --st-accent: var(--sk-accent, #0071E3);\n}\n\n/* 标题栏入口：幽灵按钮 + 当前皮肤色点 */\n#antigravity-theme-selector #antigravity-theme-btn {\n  height: 24px !important;\n  padding: 0 9px 0 7px !important;\n  gap: 6px !important;\n  border: 0 !important;\n  border-radius: 7px !important;\n  background: transparent !important;\n  box-shadow: none !important;\n  color: var(--st-text) !important;\n  font-size: 12px !important;\n  font-weight: 500 !important;\n  letter-spacing: -0.01em !important;\n  cursor: default !important;\n  transition: background-color 160ms var(--st-ease) !important;\n}\n@media (hover: hover) {\n  #antigravity-theme-selector #antigravity-theme-btn:hover { background: var(--st-fill-2) !important; }\n}\n#antigravity-theme-selector #antigravity-theme-btn[aria-expanded=\"true\"] { background: var(--st-fill-2) !important; }\n#antigravity-theme-selector #antigravity-theme-btn:focus-visible {\n  outline: 2px solid color-mix(in srgb, var(--st-accent) 55%, transparent) !important;\n  outline-offset: 1px !important;\n}\n#antigravity-theme-selector .st-dot {\n  width: 10px; height: 10px; border-radius: 50%;\n  background: var(--st-dot, var(--st-accent));\n  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 0 2px color-mix(in srgb, var(--st-dot, var(--st-accent)) 16%, transparent);\n  flex: 0 0 auto;\n}\n\n/* 面板 */\n#ag-studio {\n  position: fixed;\n  z-index: 2147483000;\n  width: 340px;\n  max-height: min(680px, calc(100vh - 64px));\n  overflow: hidden auto;\n  overscroll-behavior: contain;\n  scrollbar-width: none;\n  box-sizing: border-box;\n  padding: 6px 14px 14px;\n  border-radius: 16px;\n  color: var(--st-text);\n  font-size: 12.5px;\n  line-height: 1.4;\n  letter-spacing: -0.005em;\n  background: color-mix(in srgb, var(--sk-sidebar, #FBFBFD) 80%, transparent) !important;\n  backdrop-filter: blur(40px) saturate(1.8) !important;\n  -webkit-backdrop-filter: blur(40px) saturate(1.8) !important;\n  box-shadow:\n    0 0 0 0.5px color-mix(in srgb, var(--st-text) 14%, transparent),\n    inset 0 0.5px 0 rgba(255, 255, 255, 0.9),\n    0 2px 6px -2px rgba(0, 0, 0, 0.06),\n    0 24px 56px -16px rgba(0, 0, 0, 0.22);\n  transform-origin: var(--st-origin, top right);\n  opacity: 0;\n  transform: translateY(-6px) scale(0.97);\n  pointer-events: none;\n  visibility: hidden;\n  transition: opacity 180ms var(--st-ease), transform 260ms var(--st-spring), visibility 0s linear 260ms;\n  -webkit-app-region: no-drag;\n}\n#ag-studio::-webkit-scrollbar { display: none; }\n#ag-studio.is-open {\n  opacity: 1;\n  transform: none;\n  pointer-events: auto;\n  visibility: visible;\n  transition: opacity 160ms var(--st-ease), transform 320ms var(--st-spring), visibility 0s;\n}\n@media (prefers-reduced-motion: reduce) {\n  #ag-studio, #ag-studio.is-open { transform: none !important; transition: opacity 120ms linear, visibility 0s linear 120ms; }\n  #ag-studio * { transition: none !important; }\n}\n\n#ag-studio * { box-sizing: border-box; }\n#ag-studio button, #ag-studio input { font: inherit; color: inherit; }\n#ag-studio button { cursor: default; -webkit-tap-highlight-color: transparent; }\n#ag-studio :focus-visible {\n  outline: 2px solid color-mix(in srgb, var(--st-accent) 55%, transparent);\n  outline-offset: 2px;\n}\n#ag-studio [hidden] { display: none !important; }\n\n#ag-studio .st-head {\n  position: sticky; top: -6px; z-index: 2;\n  display: flex; align-items: center; justify-content: space-between;\n  margin: 0 -14px; padding: 12px 14px 10px;\n  background: inherit;\n}\n#ag-studio .st-title { font-size: 13px; font-weight: 600; letter-spacing: -0.015em; }\n#ag-studio .st-link {\n  border: 0; background: none; padding: 2px 4px; border-radius: 5px;\n  color: var(--st-accent); font-size: 12px; font-weight: 500;\n}\n@media (hover: hover) { #ag-studio .st-link:hover { background: var(--st-fill); } }\n\n#ag-studio .st-sec { padding: 12px 0 2px; }\n#ag-studio .st-sec + .st-sec { border-top: 0.5px solid var(--st-line); margin-top: 12px; }\n#ag-studio .st-label {\n  display: flex; align-items: baseline; justify-content: space-between;\n  margin-bottom: 9px;\n  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;\n  color: var(--st-text-2);\n}\n#ag-studio .st-label em { font-style: normal; font-weight: 500; letter-spacing: 0; font-variant-numeric: tabular-nums; }\n#ag-studio .st-note { margin-top: 8px; font-size: 11px; color: var(--st-text-2); }\n#ag-studio .st-note.is-warn { color: #B4560B; }\n#ag-studio .st-off { opacity: 0.4; pointer-events: none; }\n\n/* 皮肤卡片：一张迷你窗口 */\n#ag-studio .st-skins { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 8px; }\n#ag-studio .st-skin { border: 0; background: none; padding: 0; text-align: center; }\n#ag-studio .st-skin-art {\n  position: relative; display: block; height: 52px; border-radius: 10px; overflow: hidden;\n  background: var(--a-base);\n  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--st-text) 16%, transparent), 0 1px 2px rgba(0, 0, 0, 0.05);\n  transition: box-shadow 200ms var(--st-ease), transform 260ms var(--st-spring);\n}\n#ag-studio .st-skin-art::before {\n  content: \"\"; position: absolute; inset: 0 auto 0 0; width: 32%;\n  background: var(--a-side); box-shadow: 0.5px 0 0 var(--a-line);\n}\n#ag-studio .st-skin-art::after {\n  content: \"\"; position: absolute; left: 42%; right: 12%; bottom: 9px; height: 11px; border-radius: 4px;\n  background: #FFFFFF; box-shadow: 0 0 0 0.5px var(--a-line);\n}\n#ag-studio .st-skin-art i {\n  position: absolute; left: 42%; top: 10px; height: 3px; border-radius: 2px; background: var(--a-text); opacity: 0.55;\n}\n#ag-studio .st-skin-art i:nth-child(1) { width: 34%; }\n#ag-studio .st-skin-art i:nth-child(2) { top: 17px; width: 22%; opacity: 0.25; }\n#ag-studio .st-skin-art b {\n  position: absolute; right: calc(12% + 3px); bottom: 12px; width: 5px; height: 5px; border-radius: 50%; background: var(--a-accent);\n}\n#ag-studio .st-skin-name { display: block; margin-top: 6px; font-size: 11.5px; color: var(--st-text-2); transition: color 160ms; }\n@media (hover: hover) { #ag-studio .st-skin:hover .st-skin-art { transform: translateY(-1px); } }\n#ag-studio .st-skin[aria-pressed=\"true\"] .st-skin-art {\n  box-shadow: 0 0 0 2px var(--sk-sidebar, #FFF), 0 0 0 3.5px var(--st-accent);\n}\n#ag-studio .st-skin[aria-pressed=\"true\"] .st-skin-name { color: var(--st-text); font-weight: 600; }\n\n/* 分段控件：滑动指示块 */\n#ag-studio .st-seg {\n  position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;\n  padding: 2px; border-radius: 9px; background: var(--st-fill-2);\n}\n#ag-studio .st-seg-thumb {\n  position: absolute; top: 2px; bottom: 2px; left: 2px;\n  width: calc((100% - 4px) / var(--n));\n  transform: translateX(calc(100% * var(--i)));\n  border-radius: 7px; background: #FFFFFF;\n  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.12);\n  transition: transform 320ms var(--st-spring);\n}\n#ag-studio .st-seg button {\n  position: relative; z-index: 1; height: 26px; border: 0; background: none; border-radius: 7px;\n  font-size: 12px; font-weight: 500; color: var(--st-text-2); transition: color 160ms;\n}\n#ag-studio .st-seg button[aria-pressed=\"true\"] { color: var(--st-text); }\n\n/* 色板 */\n#ag-studio .st-swatches { display: flex; flex-wrap: wrap; gap: 9px; }\n#ag-studio .st-sw {\n  position: relative; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%;\n  background: var(--c);\n  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.16);\n  transition: transform 240ms var(--st-spring), box-shadow 160ms;\n}\n@media (hover: hover) { #ag-studio .st-sw:hover { transform: scale(1.12); } }\n#ag-studio .st-sw[aria-pressed=\"true\"] {\n  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.16), 0 0 0 2px var(--sk-sidebar, #FFF), 0 0 0 3.5px var(--c);\n}\n#ag-studio .st-sw.is-auto {\n  background: linear-gradient(135deg, var(--c) 0 50%, color-mix(in srgb, var(--c) 35%, #FFF) 50% 100%);\n}\n#ag-studio .st-sw.is-custom {\n  background: conic-gradient(from 180deg, #FF453A, #FF9F0A, #FFD60A, #32D74B, #64D2FF, #0A84FF, #BF5AF2, #FF453A);\n}\n#ag-studio .st-sw.is-custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; }\n\n/* 渐变壁纸色块 */\n#ag-studio .st-grads { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; }\n#ag-studio .st-grad {\n  height: 34px; padding: 0; border: 0; border-radius: 8px; background: var(--g);\n  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);\n  transition: transform 240ms var(--st-spring), box-shadow 160ms;\n  font-size: 10px; font-weight: 600; color: var(--st-text-2);\n}\n@media (hover: hover) { #ag-studio .st-grad:hover { transform: translateY(-1px); } }\n#ag-studio .st-grad[aria-pressed=\"true\"] {\n  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 0 0 2px var(--sk-sidebar, #FFF), 0 0 0 3.5px var(--st-accent);\n}\n\n/* 滑杆 */\n#ag-studio .st-row { margin-top: 12px; }\n#ag-studio input[type=\"range\"] {\n  -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 22px; margin: 0;\n  background: transparent; --p: 50%;\n}\n#ag-studio input[type=\"range\"]::-webkit-slider-runnable-track {\n  height: 4px; border-radius: 2px;\n  background: linear-gradient(90deg, var(--st-accent) 0 var(--p), var(--st-fill-2) var(--p) 100%);\n}\n#ag-studio input[type=\"range\"]::-webkit-slider-thumb {\n  -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7px; border-radius: 50%;\n  background: #FFFFFF;\n  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 2px 5px rgba(0, 0, 0, 0.16);\n  transition: transform 200ms var(--st-spring);\n}\n#ag-studio input[type=\"range\"]:active::-webkit-slider-thumb { transform: scale(1.1); }\n\n/* 文本框与按钮 */\n#ag-studio .st-field { display: flex; gap: 6px; margin-top: 10px; }\n#ag-studio .st-input {\n  flex: 1; min-width: 0; height: 28px; padding: 0 9px; border: 0; border-radius: 7px;\n  background: var(--st-fill); box-shadow: inset 0 0 0 0.5px var(--st-line);\n  font-size: 12px; transition: box-shadow 160ms, background-color 160ms;\n}\n#ag-studio .st-input:focus { outline: none; background: #FFFFFF; box-shadow: 0 0 0 1px var(--st-accent), 0 0 0 4px color-mix(in srgb, var(--st-accent) 16%, transparent); }\n#ag-studio .st-input.is-mono { font-family: ui-monospace, \"SF Mono\", \"JetBrains Mono\", Consolas, monospace; text-transform: uppercase; max-width: 92px; }\n#ag-studio .st-btn {\n  height: 28px; padding: 0 12px; border: 0; border-radius: 7px;\n  background: var(--st-fill-2); font-size: 12px; font-weight: 500; white-space: nowrap;\n  transition: background-color 160ms, transform 160ms;\n}\n@media (hover: hover) { #ag-studio .st-btn:hover { background: color-mix(in srgb, var(--st-text) 12%, transparent); } }\n#ag-studio .st-btn:active { transform: scale(0.97); }\n#ag-studio .st-btn.is-primary { background: var(--st-accent); color: #FFFFFF; }\n#ag-studio .st-file { display: flex; align-items: center; gap: 8px; margin-top: 10px; }\n#ag-studio .st-file span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--st-text-2); font-size: 11.5px; }\n";
+    const STUDIO_CSS = "/* === 外观面板（Studio）与标题栏入口 ===\n   独立注入，官方原版下也在。所有规则限定在 #ag-studio / #antigravity-theme-selector 内。\n   视觉参照 macOS 控制中心：厚磨砂、发丝边、分段控件滑块、弹簧缓动。 */\n\n#ag-studio, #antigravity-theme-selector {\n  --st-ease: cubic-bezier(0.32, 0.72, 0, 1);\n  --st-spring: cubic-bezier(0.34, 1.36, 0.64, 1);\n  --st-text: var(--sk-text, #1D1D1F);\n  --st-text-2: var(--sk-text-2, #6E6E73);\n  --st-line: color-mix(in srgb, var(--st-text) 9%, transparent);\n  --st-fill: color-mix(in srgb, var(--st-text) 5%, transparent);\n  --st-fill-2: color-mix(in srgb, var(--st-text) 8%, transparent);\n  --st-accent: var(--sk-accent, #0071E3);\n}\n\n/* 标题栏入口：幽灵按钮 + 当前皮肤色点 */\n#antigravity-theme-selector #antigravity-theme-btn {\n  height: 24px !important;\n  padding: 0 9px 0 7px !important;\n  gap: 6px !important;\n  border: 0 !important;\n  border-radius: 7px !important;\n  background: transparent !important;\n  box-shadow: none !important;\n  color: var(--st-text) !important;\n  font-size: 12px !important;\n  font-weight: 500 !important;\n  letter-spacing: -0.01em !important;\n  cursor: default !important;\n  transition: background-color 160ms var(--st-ease) !important;\n}\n@media (hover: hover) {\n  #antigravity-theme-selector #antigravity-theme-btn:hover { background: var(--st-fill-2) !important; }\n}\n#antigravity-theme-selector #antigravity-theme-btn[aria-expanded=\"true\"] { background: var(--st-fill-2) !important; }\n#antigravity-theme-selector #antigravity-theme-btn:focus-visible {\n  outline: 2px solid color-mix(in srgb, var(--st-accent) 55%, transparent) !important;\n  outline-offset: 1px !important;\n}\n#antigravity-theme-selector .st-dot {\n  width: 10px; height: 10px; border-radius: 50%;\n  background: var(--st-dot, var(--st-accent));\n  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.18), 0 0 0 2px color-mix(in srgb, var(--st-dot, var(--st-accent)) 16%, transparent);\n  flex: 0 0 auto;\n}\n\n/* 面板 */\n#ag-studio {\n  position: fixed;\n  z-index: 2147483000;\n  width: 340px;\n  max-height: min(680px, calc(100vh - 64px));\n  overflow: hidden auto;\n  overscroll-behavior: contain;\n  scrollbar-width: none;\n  box-sizing: border-box;\n  padding: 6px 14px 14px;\n  border-radius: 16px;\n  color: var(--st-text);\n  font-size: 12.5px;\n  line-height: 1.4;\n  letter-spacing: -0.005em;\n  background: color-mix(in srgb, var(--sk-sidebar, #FBFBFD) 80%, transparent) !important;\n  backdrop-filter: blur(40px) saturate(1.8) !important;\n  -webkit-backdrop-filter: blur(40px) saturate(1.8) !important;\n  box-shadow:\n    0 0 0 0.5px color-mix(in srgb, var(--st-text) 14%, transparent),\n    inset 0 0.5px 0 rgba(255, 255, 255, 0.9),\n    0 2px 6px -2px rgba(0, 0, 0, 0.06),\n    0 24px 56px -16px rgba(0, 0, 0, 0.22);\n  transform-origin: var(--st-origin, top right);\n  opacity: 0;\n  transform: translateY(-6px) scale(0.97);\n  pointer-events: none;\n  visibility: hidden;\n  transition: opacity 180ms var(--st-ease), transform 260ms var(--st-spring), visibility 0s linear 260ms;\n  -webkit-app-region: no-drag;\n}\n#ag-studio::-webkit-scrollbar { display: none; }\n#ag-studio.is-open {\n  opacity: 1;\n  transform: none;\n  pointer-events: auto;\n  visibility: visible;\n  transition: opacity 160ms var(--st-ease), transform 320ms var(--st-spring), visibility 0s;\n}\n@media (prefers-reduced-motion: reduce) {\n  #ag-studio, #ag-studio.is-open { transform: none !important; transition: opacity 120ms linear, visibility 0s linear 120ms; }\n  #ag-studio * { transition: none !important; }\n}\n\n#ag-studio * { box-sizing: border-box; }\n#ag-studio button, #ag-studio input { font: inherit; color: inherit; }\n#ag-studio button { cursor: default; -webkit-tap-highlight-color: transparent; }\n#ag-studio :focus-visible {\n  outline: 2px solid color-mix(in srgb, var(--st-accent) 55%, transparent);\n  outline-offset: 2px;\n}\n#ag-studio [hidden] { display: none !important; }\n\n#ag-studio .st-head {\n  position: sticky; top: -6px; z-index: 2;\n  display: flex; align-items: center; justify-content: space-between;\n  margin: 0 -14px; padding: 12px 14px 10px;\n  background: inherit;\n}\n#ag-studio .st-title { font-size: 13px; font-weight: 600; letter-spacing: -0.015em; }\n#ag-studio .st-link {\n  border: 0; background: none; padding: 2px 4px; border-radius: 5px;\n  color: var(--st-accent); font-size: 12px; font-weight: 500;\n}\n@media (hover: hover) { #ag-studio .st-link:hover { background: var(--st-fill); } }\n\n#ag-studio .st-sec { padding: 12px 0 2px; }\n#ag-studio .st-sec + .st-sec { border-top: 0.5px solid var(--st-line); margin-top: 12px; }\n#ag-studio .st-label {\n  display: flex; align-items: baseline; justify-content: space-between;\n  margin-bottom: 9px;\n  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;\n  color: var(--st-text-2);\n}\n#ag-studio .st-label em { font-style: normal; font-weight: 500; letter-spacing: 0; font-variant-numeric: tabular-nums; }\n#ag-studio .st-note { margin-top: 8px; font-size: 11px; color: var(--st-text-2); }\n#ag-studio .st-note.is-warn { color: #B4560B; }\n#ag-studio .st-off { opacity: 0.4; pointer-events: none; }\n\n/* 皮肤卡片：一张迷你窗口 */\n#ag-studio .st-skins { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 8px; }\n#ag-studio .st-skin { border: 0; background: none; padding: 0; text-align: center; }\n#ag-studio .st-skin-art {\n  position: relative; display: block; height: 52px; border-radius: 10px; overflow: hidden;\n  background: var(--a-base);\n  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--st-text) 16%, transparent), 0 1px 2px rgba(0, 0, 0, 0.05);\n  transition: box-shadow 200ms var(--st-ease), transform 260ms var(--st-spring);\n}\n#ag-studio .st-skin-art::before {\n  content: \"\"; position: absolute; inset: 0 auto 0 0; width: 32%;\n  background: var(--a-side); box-shadow: 0.5px 0 0 var(--a-line);\n}\n#ag-studio .st-skin-art::after {\n  content: \"\"; position: absolute; left: 42%; right: 12%; bottom: 9px; height: 11px; border-radius: 4px;\n  background: #FFFFFF; box-shadow: 0 0 0 0.5px var(--a-line);\n}\n#ag-studio .st-skin-art i {\n  position: absolute; left: 42%; top: 10px; height: 3px; border-radius: 2px; background: var(--a-text); opacity: 0.55;\n}\n#ag-studio .st-skin-art i:nth-child(1) { width: 34%; }\n#ag-studio .st-skin-art i:nth-child(2) { top: 17px; width: 22%; opacity: 0.25; }\n#ag-studio .st-skin-art b {\n  position: absolute; right: calc(12% + 3px); bottom: 12px; width: 5px; height: 5px; border-radius: 50%; background: var(--a-accent);\n}\n#ag-studio .st-skin-name { display: block; margin-top: 6px; font-size: 11.5px; color: var(--st-text-2); transition: color 160ms; }\n@media (hover: hover) { #ag-studio .st-skin:hover .st-skin-art { transform: translateY(-1px); } }\n#ag-studio .st-skin[aria-pressed=\"true\"] .st-skin-art {\n  box-shadow: 0 0 0 2px var(--sk-sidebar, #FFF), 0 0 0 3.5px var(--st-accent);\n}\n#ag-studio .st-skin[aria-pressed=\"true\"] .st-skin-name { color: var(--st-text); font-weight: 600; }\n\n/* 分段控件：滑动指示块 */\n#ag-studio .st-seg {\n  position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;\n  padding: 2px; border-radius: 9px; background: var(--st-fill-2);\n}\n#ag-studio .st-seg-thumb {\n  position: absolute; top: 2px; bottom: 2px; left: 2px;\n  width: calc((100% - 4px) / var(--n));\n  transform: translateX(calc(100% * var(--i)));\n  border-radius: 7px; background: #FFFFFF;\n  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.12);\n  transition: transform 320ms var(--st-spring);\n}\n#ag-studio .st-seg button {\n  position: relative; z-index: 1; height: 26px; border: 0; background: none; border-radius: 7px;\n  font-size: 12px; font-weight: 500; color: var(--st-text-2); transition: color 160ms;\n}\n#ag-studio .st-seg button[aria-pressed=\"true\"] { color: var(--st-text); }\n\n/* 色板 */\n#ag-studio .st-swatches { display: flex; flex-wrap: wrap; gap: 9px; }\n#ag-studio .st-sw {\n  position: relative; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%;\n  background: var(--c);\n  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.16);\n  transition: transform 240ms var(--st-spring), box-shadow 160ms;\n}\n@media (hover: hover) { #ag-studio .st-sw:hover { transform: scale(1.12); } }\n#ag-studio .st-sw[aria-pressed=\"true\"] {\n  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.16), 0 0 0 2px var(--sk-sidebar, #FFF), 0 0 0 3.5px var(--c);\n}\n#ag-studio .st-sw.is-auto {\n  background: linear-gradient(135deg, var(--c) 0 50%, color-mix(in srgb, var(--c) 35%, #FFF) 50% 100%);\n}\n#ag-studio .st-sw.is-custom {\n  background: conic-gradient(from 180deg, #FF453A, #FF9F0A, #FFD60A, #32D74B, #64D2FF, #0A84FF, #BF5AF2, #FF453A);\n}\n#ag-studio .st-sw.is-custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; }\n\n/* 渐变壁纸色块 */\n#ag-studio .st-grads { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; }\n#ag-studio .st-grad {\n  height: 34px; padding: 0; border: 0; border-radius: 8px; background: var(--g);\n  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);\n  transition: transform 240ms var(--st-spring), box-shadow 160ms;\n  font-size: 10px; font-weight: 600; color: var(--st-text-2);\n}\n@media (hover: hover) { #ag-studio .st-grad:hover { transform: translateY(-1px); } }\n#ag-studio .st-grad[aria-pressed=\"true\"] {\n  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 0 0 2px var(--sk-sidebar, #FFF), 0 0 0 3.5px var(--st-accent);\n}\n\n/* 滑杆 */\n#ag-studio .st-row { margin-top: 12px; }\n#ag-studio input[type=\"range\"] {\n  -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 22px; margin: 0;\n  background: transparent; --p: 50%;\n}\n#ag-studio input[type=\"range\"]::-webkit-slider-runnable-track {\n  height: 4px; border-radius: 2px;\n  background: linear-gradient(90deg, var(--st-accent) 0 var(--p), var(--st-fill-2) var(--p) 100%);\n}\n#ag-studio input[type=\"range\"]::-webkit-slider-thumb {\n  -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7px; border-radius: 50%;\n  background: #FFFFFF;\n  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 2px 5px rgba(0, 0, 0, 0.16);\n  transition: transform 200ms var(--st-spring);\n}\n#ag-studio input[type=\"range\"]:active::-webkit-slider-thumb { transform: scale(1.1); }\n\n/* 文本框与按钮 */\n#ag-studio .st-field { display: flex; gap: 6px; margin-top: 10px; }\n#ag-studio .st-input {\n  flex: 1; min-width: 0; height: 28px; padding: 0 9px; border: 0; border-radius: 7px;\n  background: var(--st-fill); box-shadow: inset 0 0 0 0.5px var(--st-line);\n  font-size: 12px; transition: box-shadow 160ms, background-color 160ms;\n}\n#ag-studio .st-input:focus { outline: none; background: #FFFFFF; box-shadow: 0 0 0 1px var(--st-accent), 0 0 0 4px color-mix(in srgb, var(--st-accent) 16%, transparent); }\n#ag-studio .st-input.is-mono { font-family: ui-monospace, \"SF Mono\", \"JetBrains Mono\", Consolas, monospace; text-transform: uppercase; max-width: 92px; }\n#ag-studio .st-btn {\n  height: 28px; padding: 0 12px; border: 0; border-radius: 7px;\n  background: var(--st-fill-2); font-size: 12px; font-weight: 500; white-space: nowrap;\n  transition: background-color 160ms, transform 160ms;\n}\n@media (hover: hover) { #ag-studio .st-btn:hover { background: color-mix(in srgb, var(--st-text) 12%, transparent); } }\n#ag-studio .st-btn:active { transform: scale(0.97); }\n#ag-studio .st-btn.is-primary { background: var(--st-accent); color: #FFFFFF; }\n#ag-studio .st-foot {\n  margin: 14px -14px -14px; padding: 10px 14px 12px;\n  border-top: 0.5px solid var(--st-line);\n  font-size: 11px; color: var(--st-text-2);\n}\n#ag-studio kbd {\n  display: inline-block; min-width: 18px; margin: 0 1px; padding: 1px 5px; border-radius: 4px;\n  background: var(--st-fill-2); box-shadow: inset 0 -0.5px 0 var(--st-line);\n  font: 500 10.5px/1.4 ui-monospace, \"SF Mono\", Consolas, monospace; text-align: center; color: var(--st-text);\n}\n\n#ag-studio .st-file { display: flex; align-items: center; gap: 8px; margin-top: 10px; }\n#ag-studio .st-file span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--st-text-2); font-size: 11.5px; }\n";
     const DEFAULT_PREFS = {
         accent: '',          // 空 = 跟随皮肤
         material: 'frosted', // solid | frosted | clear
@@ -413,7 +432,11 @@ const THEME_PREF_KEY = 'custom-theme-id';
     ];
 
     let prefs = Object.assign({}, DEFAULT_PREFS);
-    let wallImage = '';
+    // 本地壁纸存在 %APPDATA%\Antigravity\custom-theme\wall.webp，启动时随 boot 注入，不进 nativeStorage
+    let wallImage = typeof BOOT.wallImage === 'string' && /^data:image\/webp;base64,/.test(BOOT.wallImage) ? BOOT.wallImage : '';
+    let wallUpload = null;
+    let wallUploadTimer = null;
+    let wallStatus = '';
     let nativeTimer = null;
 
     const clamp = (v, lo, hi, d) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
@@ -469,7 +492,6 @@ const THEME_PREF_KEY = 'custom-theme-id';
                     try { prefs = normalizePrefs(JSON.parse(items[PREFS_KEY])); } catch (e) {}
                     try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {}
                 }
-                wallImage = safeUrl(items[WALL_IMG_KEY] || '');
                 studioApply();
                 studioRefresh();
             }).catch(() => {});
@@ -691,17 +713,21 @@ const THEME_PREF_KEY = 'custom-theme-id';
         fileInput.addEventListener('change', () => {
             const f = fileInput.files && fileInput.files[0];
             if (!f) return;
-            fileName.textContent = '处理中…';
+            wallStatus = '处理中…';
+            studioRefresh();
             readWallFile(f).then((data) => {
+                // 立即显示；文件由守护进程写成 wall.webp（页面自己写不了文件），下次启动随 boot 一起注入
                 wallImage = data;
-                try {
-                    if (window.nativeStorage && typeof window.nativeStorage.updateItems === 'function') {
-                        Promise.resolve(window.nativeStorage.updateItems({ [WALL_IMG_KEY]: data })).catch(() => {});
-                    }
-                } catch (e) {}
-                fileName.textContent = f.name;
+                wallUpload = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), data, name: f.name };
+                wallStatus = `${f.name} · 保存中…`;
+                clearTimeout(wallUploadTimer);
+                wallUploadTimer = setTimeout(() => {
+                    if (!wallUpload) return;
+                    wallStatus = `${f.name} · 暂未保存，守护进程运行后会自动保存`;
+                    studioRefresh();
+                }, 15000);
                 update({ wall: 'image' }, { immediate: true });
-            }).catch((e) => { fileName.textContent = e.message; });
+            }).catch((e) => { wallStatus = e.message; studioRefresh(); });
             fileInput.value = '';
         });
         const fileRow = h('div', { class: 'st-file' }, h('button', { type: 'button', class: 'st-btn', onclick: () => fileInput.click() }, '选择图片…'), fileName, fileInput);
@@ -735,7 +761,8 @@ const THEME_PREF_KEY = 'custom-theme-id';
                 h('button', { type: 'button', class: 'st-link', onclick: () => { prefs = normalizePrefs({}); savePrefs(true); studioApply(); studioRefresh(); } }, '恢复默认')),
             h('div', { class: 'st-sec', style: 'padding-top:4px' }, skins),
             stockNote,
-            custom);
+            custom,
+            h('div', { class: 'st-foot' }, '外观异常时按 ', h('kbd', null, 'Ctrl'), h('kbd', null, 'Alt'), h('kbd', null, 'Shift'), h('kbd', null, 'T'), ' 临时切回官方原版'));
         return panel;
     }
 
@@ -771,8 +798,7 @@ const THEME_PREF_KEY = 'custom-theme-id';
         w.grads.hidden = prefs.wall !== 'gradient';
         w.grads.querySelectorAll('.st-grad').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === prefs.gradient)));
         w.fileRow.hidden = prefs.wall !== 'image';
-        if (prefs.wall === 'image' && !wallImage && !w.fileName.textContent) w.fileName.textContent = '还没有选择图片';
-        if (wallImage && w.fileName.textContent === '还没有选择图片') w.fileName.textContent = '已保存的图片';
+        w.fileName.textContent = wallStatus || (wallImage ? '已保存的图片' : '还没有选择图片');
         w.urlRow.hidden = prefs.wall !== 'url';
         if (document.activeElement !== w.urlInput) w.urlInput.value = prefs.url;
         ui.fit._sync(prefs.fit);
@@ -808,18 +834,75 @@ const THEME_PREF_KEY = 'custom-theme-id';
         if (btn) btn.setAttribute('aria-expanded', String(open));
     }
 
-    if (!window.__antigravityStudioListeners) {
-        window.__antigravityStudioListeners = true;
-        document.addEventListener('pointerdown', (e) => {
+    function toast(msg) {
+        const old = document.getElementById('ag-theme-toast');
+        if (old) old.remove();
+        const t = h('div', { id: 'ag-theme-toast', role: 'status' }, msg);
+        t.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:2147483600;max-width:min(560px,calc(100vw - 32px));padding:10px 16px;border-radius:12px;background:rgba(29,29,31,.92);color:#fff;font:500 12.5px/1.45 system-ui,sans-serif;box-shadow:0 12px 32px -8px rgba(0,0,0,.35);-webkit-app-region:no-drag';
+        t.onclick = () => t.remove();
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 4000);
+    }
+
+    // 应急：Ctrl+Alt+Shift+T 在官方原版和上一个皮肤之间切换，面板打不开时也能用
+    const LAST_SKIN_KEY = 'custom-theme-last-skin';
+    function toggleSafeMode() {
+        const cur = activeThemeId();
+        if (cur !== 'stock') {
+            try { localStorage.setItem(LAST_SKIN_KEY, cur); } catch (e) {}
+            applyTheme('stock');
+            toast('已临时切回官方原版。再按 Ctrl+Alt+Shift+T 恢复。');
+        } else {
+            let back = 'aluminum';
+            try { back = resolveThemeId(localStorage.getItem(LAST_SKIN_KEY)); } catch (e) {}
+            applyTheme(back);
+            toast('已恢复「' + getTheme(back).name + '」。');
+        }
+        studioRefresh();
+    }
+
+    // 给守护进程读：当前皮肤、偏好、待保存的壁纸
+    window.__agThemeState = {
+        get theme() { return activeThemeId(); },
+        get prefs() { return prefs; },
+        get wallUploadId() { return wallUpload ? wallUpload.id : null; },
+        get wallUpload() { return wallUpload; },
+        ackWall(id, res) {
+            if (!wallUpload || wallUpload.id !== id) return false;
+            const name = wallUpload.name;
+            wallUpload = null;
+            clearTimeout(wallUploadTimer);
+            wallStatus = res && res.ok ? `${name} · 已保存` : `${name} · 保存失败：${(res && res.error) || '未知错误'}`;
+            studioRefresh();
+            return true;
+        }
+    };
+
+    // 监听只挂一次，转发到当前这份引擎，热替换后不会有两份旧闭包同时响应
+    window.__agStudioHandlers = {
+        pointerdown(e) {
             const p = document.getElementById('ag-studio');
             const b = document.getElementById('antigravity-theme-btn');
             if (p && p.classList.contains('is-open') && !p.contains(e.target) && !(b && b.contains(e.target))) studioToggle(false);
-        }, true);
-        document.addEventListener('keydown', (e) => {
+        },
+        keydown(e) {
+            if (e.ctrlKey && e.altKey && e.shiftKey && !e.metaKey && (e.key === 'T' || e.key === 't' || e.code === 'KeyT')) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleSafeMode();
+                return;
+            }
             const p = document.getElementById('ag-studio');
             if (e.key === 'Escape' && p && p.classList.contains('is-open')) { studioToggle(false); const b = document.getElementById('antigravity-theme-btn'); if (b) b.focus(); }
-        });
-        window.addEventListener('resize', () => studioToggle(false));
+        },
+        resize() { studioToggle(false); }
+    };
+    if (!window.__agStudioForwarders) {
+        window.__agStudioForwarders = true;
+        const fwd = (name) => (e) => { const hd = window.__agStudioHandlers; if (hd && hd[name]) hd[name](e); };
+        document.addEventListener('pointerdown', fwd('pointerdown'), true);
+        document.addEventListener('keydown', fwd('keydown'), true);
+        window.addEventListener('resize', fwd('resize'));
     }
     // ===================== 外观面板 end =====================
 
@@ -872,10 +955,15 @@ const THEME_PREF_KEY = 'custom-theme-id';
                 mountThemeSelector();
                 return;
             }
-            if (!document.getElementById('antigravity-theme-selector') &&
-                document.querySelector('[data-testid="pane-titlebar-toolbar"]')) {
+            const sel = document.getElementById('antigravity-theme-selector');
+            if (!sel || (sel.hasAttribute('data-fallback') && document.querySelector('[data-testid="pane-titlebar-toolbar"]'))) {
                 mountThemeSelector();
             }
         } catch (e) { }
     }, 1000);
+
+    // 走到这里说明初始化没有中途报错；健康检查据此区分「加载了但坏了」
+    window.__agThemeFirst = window.__agThemeFirst || activeThemeId();
+    engineReadyAt = Date.now();
+    window.__antigravityThemeReady = true;
 })();

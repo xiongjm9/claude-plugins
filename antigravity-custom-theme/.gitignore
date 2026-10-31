@@ -3,3 +3,6 @@ work/
 .grok/
 *.tmp
 guardian.log*
+boot.json
+wall.webp
+guardian-state.json

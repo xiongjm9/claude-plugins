@@ -16,6 +16,16 @@
     const THEMES = /*@@THEMES@@*/;
 
 const THEME_PREF_KEY = 'custom-theme-id';
+
+    // 启动偏好：asar 钩子 / 守护进程在本脚本前注入 window.__agThemeBoot（来自 boot.json 与 wall.webp）。
+    // 页面端口每次启动都变，localStorage 总是空的；先用它填上，第一帧就是保存的皮肤，不用等 nativeStorage。
+    const BOOT = (window.__agThemeBoot && typeof window.__agThemeBoot === 'object') ? window.__agThemeBoot : {};
+    window.__agThemeBootLoaded = !!(BOOT.theme || BOOT.studio);
+    try {
+        if (BOOT.theme && !localStorage.getItem('antigravity_selected_theme')) localStorage.setItem('antigravity_selected_theme', BOOT.theme);
+        if (BOOT.studio && !localStorage.getItem('custom-theme-studio')) localStorage.setItem('custom-theme-studio', JSON.stringify(BOOT.studio));
+    } catch (e) {}
+
     let lastActiveId = null;
     let lastIsDark = null;
     let lastAppliedOverlay = null;
@@ -341,15 +351,19 @@ const THEME_PREF_KEY = 'custom-theme-id';
         if (label) label.textContent = theme.name;
     }
 
-    // 挂载右上角主题选择器
+    // 挂载右上角主题选择器。官方改版后找不到工具区时，主界面出来 3 秒后改挂到标题栏下方的备用位置，保证面板始终能打开
+    let engineReadyAt = 0;
     function mountThemeSelector() {
         const toolbar = document.querySelector('[data-testid="pane-titlebar-toolbar"]');
-        if (!toolbar) return;
-
         const existing = document.getElementById('antigravity-theme-selector');
-        if (existing) {
-            if (toolbar.contains(existing)) return;
-            existing.remove();
+        if (toolbar) {
+            if (existing) {
+                if (toolbar.contains(existing)) return;
+                existing.remove();
+            }
+        } else {
+            if (existing) return;
+            if (!document.querySelector('[data-testid="title-menu-bar"]') || !engineReadyAt || Date.now() - engineReadyAt < 3000) return;
         }
         const legacy = document.getElementById('antigravity-theme-dropdown');
         if (legacy) legacy.remove();
@@ -370,8 +384,14 @@ const THEME_PREF_KEY = 'custom-theme-id';
         btn.onclick = (e) => { e.stopPropagation(); studioToggle(); };
 
         container.appendChild(btn);
-        // 插在最左边（⋮ 菜单的前面）
-        toolbar.insertBefore(container, toolbar.firstChild);
+        if (toolbar) {
+            // 插在最左边（⋮ 菜单的前面）
+            toolbar.insertBefore(container, toolbar.firstChild);
+        } else {
+            container.dataset.fallback = '';
+            container.style.cssText += 'position: fixed; top: 42px; right: 16px; z-index: 2147482000;';
+            document.body.appendChild(container);
+        }
         updateSelectorUI(currentId);
         if (currentId !== 'stock') {
             enforceTitleBarColor(true);
@@ -428,10 +448,15 @@ const THEME_PREF_KEY = 'custom-theme-id';
                 mountThemeSelector();
                 return;
             }
-            if (!document.getElementById('antigravity-theme-selector') &&
-                document.querySelector('[data-testid="pane-titlebar-toolbar"]')) {
+            const sel = document.getElementById('antigravity-theme-selector');
+            if (!sel || (sel.hasAttribute('data-fallback') && document.querySelector('[data-testid="pane-titlebar-toolbar"]'))) {
                 mountThemeSelector();
             }
         } catch (e) { }
     }, 1000);
+
+    // 走到这里说明初始化没有中途报错；健康检查据此区分「加载了但坏了」
+    window.__agThemeFirst = window.__agThemeFirst || activeThemeId();
+    engineReadyAt = Date.now();
+    window.__antigravityThemeReady = true;
 })();

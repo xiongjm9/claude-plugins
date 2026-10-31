@@ -243,5 +243,16 @@
 @media (hover: hover) { #ag-studio .st-btn:hover { background: color-mix(in srgb, var(--st-text) 12%, transparent); } }
 #ag-studio .st-btn:active { transform: scale(0.97); }
 #ag-studio .st-btn.is-primary { background: var(--st-accent); color: #FFFFFF; }
+#ag-studio .st-foot {
+  margin: 14px -14px -14px; padding: 10px 14px 12px;
+  border-top: 0.5px solid var(--st-line);
+  font-size: 11px; color: var(--st-text-2);
+}
+#ag-studio kbd {
+  display: inline-block; min-width: 18px; margin: 0 1px; padding: 1px 5px; border-radius: 4px;
+  background: var(--st-fill-2); box-shadow: inset 0 -0.5px 0 var(--st-line);
+  font: 500 10.5px/1.4 ui-monospace, "SF Mono", Consolas, monospace; text-align: center; color: var(--st-text);
+}
+
 #ag-studio .st-file { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 #ag-studio .st-file span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--st-text-2); font-size: 11.5px; }

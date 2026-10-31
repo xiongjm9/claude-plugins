@@ -1,13 +1,17 @@
-// app.asar 补丁：在主窗口 createWindow 的 loadURL 前插入钩子，dom-ready 时注入 current.css / current.js
+// app.asar 补丁：在主窗口 createWindow 的 loadURL 前插入钩子，dom-ready 时注入 current.css / 启动偏好 / current.js
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
 const MARKER = 'custom-theme injection hook';
+const HOOK_VERSION = 2;
 const ANCHOR = 'void win.loadURL(url);';
+const START_TAG = `// === Antigravity ${MARKER} (start)`;
+const END_TAG = `// === Antigravity ${MARKER} (end) ===`;
 
-// 先读 %APPDATA% 下的主题（更新不会动），安装目录里的副本只作兜底
-const HOOK = `// === Antigravity custom-theme injection hook (start) ===
+// 钩子只读静态数据（css / js / boot.json / wall.webp）注入渲染进程，不从 %APPDATA% 加载任何主进程代码。
+// boot 让主题第一帧就用保存的偏好，不用等 nativeStorage 异步返回。
+const HOOK = `${START_TAG} v${HOOK_VERSION} ===
         win.webContents.on('dom-ready', () => {
             try {
                 const path_ = require('path');
@@ -16,22 +20,43 @@ const HOOK = `// === Antigravity custom-theme injection hook (start) ===
                     path_.join(process.env.APPDATA || '', 'Antigravity', 'custom-theme'),
                     path_.join(process.resourcesPath, 'custom-theme')
                 ];
-                const readThemeFile = (name) => {
+                const findThemeFile = (name) => {
                     for (const d of dirs) {
                         try {
                             const f = path_.join(d, name);
-                            if (fs_.existsSync(f)) return fs_.readFileSync(f, 'utf8');
+                            if (fs_.existsSync(f)) return f;
                         } catch (e) { }
                     }
                     return null;
                 };
+                const readThemeFile = (name) => {
+                    const f = findThemeFile(name);
+                    try { return f ? fs_.readFileSync(f, 'utf8') : null; } catch (e) { return null; }
+                };
+                const boot = {};
+                try {
+                    const b = JSON.parse(readThemeFile('boot.json') || '{}');
+                    if (typeof b.theme === 'string' && b.theme.length < 64) boot.theme = b.theme;
+                    if (b.studio && typeof b.studio === 'object') boot.studio = b.studio;
+                } catch (e) { }
+                try {
+                    const wf = findThemeFile('wall.webp');
+                    if (wf && fs_.statSync(wf).size < 6 * 1024 * 1024) {
+                        const buf = fs_.readFileSync(wf);
+                        if (buf.toString('latin1', 0, 4) === 'RIFF' && buf.toString('latin1', 8, 12) === 'WEBP') {
+                            boot.wallImage = 'data:image/webp;base64,' + buf.toString('base64');
+                        }
+                    }
+                } catch (e) { }
                 const css = readThemeFile('current.css');
                 if (css && css.trim()) win.webContents.insertCSS(css).catch(() => { });
                 const js = readThemeFile('current.js');
-                if (js && js.trim()) win.webContents.executeJavaScript(js, true).catch(() => { });
+                if (js && js.trim()) {
+                    win.webContents.executeJavaScript('window.__agThemeBoot = ' + JSON.stringify(boot) + ';\\n' + js, true).catch(() => { });
+                }
             } catch (e) { }
         });
-        // === Antigravity custom-theme injection hook (end) ===
+        ${END_TAG}
 `;
 
 function defaultAsarPath() {
@@ -71,22 +96,44 @@ function findTarget(asar) {
   return fallback;
 }
 
-// 'patched' | 'unpatched' | 'no-anchor'
+// 去掉已插入的钩子（任何版本），还原成原始内容
+function stripHook(content) {
+  const a = content.indexOf(START_TAG);
+  if (a < 0) return content;
+  const lineStart = content.lastIndexOf('\n', a) + 1;
+  const e = content.indexOf(END_TAG, a);
+  if (e < 0) throw new Error('钩子缺少结束标记，无法安全替换');
+  const lineEnd = content.indexOf('\n', e);
+  return content.slice(0, lineStart) + content.slice(lineEnd < 0 ? content.length : lineEnd + 1);
+}
+
+const hookVersionOf = (content) => {
+  if (!content.includes(MARKER)) return 0;
+  const m = content.match(/custom-theme injection hook \(start\) v(\d+) ===/);
+  return m ? Number(m[1]) : 1;
+};
+
+// 'patched' | 'outdated' | 'unpatched' | 'no-anchor'
 function status(asarPath = defaultAsarPath()) {
   const t = findTarget(readAsar(asarPath));
   if (!t) return 'no-anchor';
-  return t.content.includes(MARKER) ? 'patched' : 'unpatched';
+  const v = hookVersionOf(t.content);
+  if (!v) return 'unpatched';
+  return v === HOOK_VERSION ? 'patched' : 'outdated';
 }
 
 function patch(asarPath = defaultAsarPath()) {
   const asar = readAsar(asarPath);
   const t = findTarget(asar);
   if (!t) throw new Error(`未找到锚点 ${ANCHOR}，Antigravity 可能改了 createWindow，需要更新 asar-patch.js`);
-  if (t.content.includes(MARKER)) return { changed: false, file: t.file };
+  const version = hookVersionOf(t.content);
+  if (version === HOOK_VERSION) return { changed: false, file: t.file };
 
-  const idx = t.content.indexOf(ANCHOR);
-  const lineStart = t.content.lastIndexOf('\n', idx) + 1;
-  const buf = Buffer.from(t.content.slice(0, lineStart) + HOOK + t.content.slice(lineStart), 'utf8');
+  const base = stripHook(t.content);
+  const idx = base.indexOf(ANCHOR);
+  if (idx < 0) throw new Error('去掉旧钩子后找不到锚点');
+  const lineStart = base.lastIndexOf('\n', idx) + 1;
+  const buf = Buffer.from(base.slice(0, lineStart) + HOOK + base.slice(lineStart), 'utf8');
 
   const blockSize = (t.entry.integrity && t.entry.integrity.blockSize) || 4 * 1024 * 1024;
   const blocks = [];
@@ -105,18 +152,23 @@ function patch(asarPath = defaultAsarPath()) {
   head.writeUInt32LE(json.length, 12);
   const out = Buffer.concat([head, json, Buffer.alloc(pad), asar.bytes.subarray(asar.dataStart), buf]);
 
-  // 备份当前未打补丁的原件，再用临时文件 + 改名替换，避免写一半
-  fs.copyFileSync(asarPath, `${asarPath}.orig`);
+  // 只在原件未打过补丁时备份，升级旧钩子时保留最初的原件；临时文件 + 改名替换，避免写一半
+  const orig = `${asarPath}.orig`;
+  if (version === 0 || !fs.existsSync(orig)) fs.copyFileSync(asarPath, orig);
+  const backup = `${asarPath}.prev`;
+  fs.copyFileSync(asarPath, backup);
   const tmp = `${asarPath}.tmp`;
   fs.writeFileSync(tmp, out);
   fs.renameSync(tmp, asarPath);
 
   const v = findTarget(readAsar(asarPath));
-  if (!v || !v.content.includes(MARKER) || sha256(Buffer.from(v.content, 'utf8')) !== v.entry.integrity.hash) {
-    fs.copyFileSync(`${asarPath}.orig`, asarPath);
-    throw new Error('补丁自检失败，已还原原始 app.asar');
+  if (!v || hookVersionOf(v.content) !== HOOK_VERSION || sha256(Buffer.from(v.content, 'utf8')) !== v.entry.integrity.hash) {
+    fs.copyFileSync(backup, asarPath);
+    fs.unlinkSync(backup);
+    throw new Error('补丁自检失败，已还原到打补丁前的 app.asar');
   }
-  return { changed: true, file: t.file, size: out.length };
+  fs.unlinkSync(backup);
+  return { changed: true, upgraded: version > 0, file: t.file, size: out.length };
 }
 
-module.exports = { MARKER, defaultAsarPath, status, patch };
+module.exports = { MARKER, HOOK, HOOK_VERSION, defaultAsarPath, status, patch, stripHook, readAsar, findTarget };

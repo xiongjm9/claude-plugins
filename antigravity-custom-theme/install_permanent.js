@@ -7,7 +7,8 @@ const { execFileSync, spawn, spawnSync } = require('child_process');
 
 // 运行目录固定在 %APPDATA%（钩子和自启都指向这里，更新不会动）；从仓库（如 D:\claude-plugins）执行时先同步过去再装
 const RUNTIME_DIR = path.join(process.env.APPDATA, 'Antigravity', 'custom-theme');
-const RUNTIME_FILES = ['current.css', 'current.js', 'asar-patch.js', 'cdp-inject.js', 'guardian.js', 'inject_live.js', 'install_permanent.js'];
+// boot.json / wall.webp / guardian-state.json 是运行时生成的用户数据，不在这里覆盖
+const RUNTIME_FILES = ['current.css', 'current.js', 'asar-patch.js', 'cdp-inject.js', 'guardian.js', 'health.js', 'check.js', 'inject_live.js', 'install_permanent.js'];
 if (path.resolve(__dirname).toLowerCase() !== path.resolve(RUNTIME_DIR).toLowerCase()) {
   fs.mkdirSync(RUNTIME_DIR, { recursive: true });
   for (const f of RUNTIME_FILES) fs.copyFileSync(path.join(__dirname, f), path.join(RUNTIME_DIR, f));
@@ -57,7 +58,7 @@ async function install() {
   if (asarPatch.status(asarPath) === 'patched') {
     console.log('[OK] app.asar 已有钩子');
   } else if (appRunning()) {
-    console.log('[*] Antigravity 正在运行，app.asar 暂不改动：守护进程会先实时注入，关闭应用后自动打补丁');
+    console.log('[*] Antigravity 正在运行，app.asar 暂不改动：守护进程会先实时注入，关闭应用后自动打补丁（或升级旧钩子）');
   } else {
     const r = asarPatch.patch(asarPath);
     console.log(r.changed ? `[OK] 已给 ${r.file} 打补丁并通过自检` : '[OK] app.asar 已有钩子');
@@ -73,7 +74,8 @@ async function uninstall() {
   if (await stopGuardian()) console.log('[OK] 已停止守护进程');
   if (fs.existsSync(STARTUP_VBS)) { fs.unlinkSync(STARTUP_VBS); console.log('[OK] 已删除登录自启'); }
   const orig = `${asarPath}.orig`;
-  if (asarPatch.status(asarPath) !== 'patched') {
+  const st = asarPatch.status(asarPath);
+  if (st !== 'patched' && st !== 'outdated') {
     console.log('[OK] app.asar 没有钩子，无需还原');
   } else if (appRunning()) {
     console.log('[!] Antigravity 正在运行，关闭后再执行一次 --uninstall 以还原 app.asar');
