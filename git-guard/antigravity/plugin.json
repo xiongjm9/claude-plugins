@@ -1,0 +1,4 @@
+{
+  "name": "git-guard",
+  "description": "Ask before destructive git commands (reset --hard, clean -f, checkout <file>, force push, branch delete)"
+}
