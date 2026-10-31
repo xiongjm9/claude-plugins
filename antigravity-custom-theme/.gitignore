@@ -2,3 +2,4 @@
 work/
 .grok/
 *.tmp
+guardian.log*

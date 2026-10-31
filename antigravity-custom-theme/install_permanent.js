@@ -1,156 +1,92 @@
+// 安装 / 修复：打 app.asar 补丁 + 登录自启守护进程。  node install_permanent.js
+// 卸载：停守护、删自启、还原 app.asar。                  node install_permanent.js --uninstall
 const fs = require('fs');
+const net = require('net');
 const path = require('path');
-const crypto = require('crypto');
+const { execFileSync, spawn, spawnSync } = require('child_process');
 
-const themeDir = 'C:\\Users\\Administrator\\AppData\\Roaming\\Antigravity\\custom-theme';
-const resDir = path.join(process.env.LOCALAPPDATA, 'Programs', 'antigravity', 'resources');
-const asarPath = path.join(resDir, 'app.asar');
-const resThemeDir = path.join(resDir, 'custom-theme');
-
-console.log('[*] Target asar:', asarPath);
-
-if (!fs.existsSync(asarPath)) {
-  console.error('[X] Cannot find app.asar at:', asarPath);
-  process.exit(1);
+// 运行目录固定在 %APPDATA%（钩子和自启都指向这里，更新不会动）；从仓库（如 D:\claude-plugins）执行时先同步过去再装
+const RUNTIME_DIR = path.join(process.env.APPDATA, 'Antigravity', 'custom-theme');
+const RUNTIME_FILES = ['current.css', 'current.js', 'asar-patch.js', 'cdp-inject.js', 'guardian.js', 'inject_live.js', 'install_permanent.js'];
+if (path.resolve(__dirname).toLowerCase() !== path.resolve(RUNTIME_DIR).toLowerCase()) {
+  fs.mkdirSync(RUNTIME_DIR, { recursive: true });
+  for (const f of RUNTIME_FILES) fs.copyFileSync(path.join(__dirname, f), path.join(RUNTIME_DIR, f));
+  console.log('[OK] 已同步运行文件到', RUNTIME_DIR);
+  const r = spawnSync(process.execPath, [path.join(RUNTIME_DIR, 'install_permanent.js'), ...process.argv.slice(2)], { stdio: 'inherit' });
+  process.exit(r.status === null ? 1 : r.status);
 }
 
-// 1. 同步 custom-theme 到 resources 目录
-if (!fs.existsSync(resThemeDir)) {
-  fs.mkdirSync(resThemeDir, { recursive: true });
-}
-fs.copyFileSync(path.join(themeDir, 'current.css'), path.join(resThemeDir, 'current.css'));
-fs.copyFileSync(path.join(themeDir, 'current.js'), path.join(resThemeDir, 'current.js'));
-console.log('[OK] Deployed theme files to:', resThemeDir);
+const asarPatch = require('./asar-patch');
 
-// 2. 读取 asar
-const bytes = fs.readFileSync(asarPath);
-const jsonLen = bytes.readUInt32LE(12);
-const payloadSize = bytes.readUInt32LE(8);
-const dataStart = 12 + payloadSize;
-const json = bytes.toString('utf8', 16, 16 + jsonLen);
+const PIPE = '\\\\.\\pipe\\antigravity-custom-theme-guardian';
+const STARTUP_VBS = path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'antigravity-custom-theme-guardian.vbs');
+const asarPath = asarPatch.defaultAsarPath();
 
-const marker = 'custom-theme injection hook';
-const anchor = 'void win.loadURL(url);';
-const utilPattern = /"utils\.js":\{"size":(\d+),"offset":"(\d+)","integrity":\{"algorithm":"SHA256","hash":"([0-9a-f]{64})","blockSize":(\d+),"blocks":\[[^\]]*\]\}\}/g;
-
-let match;
-let targetMatch = null;
-let utilsContent = null;
-
-while ((match = utilPattern.exec(json)) !== null) {
-  const sz = parseInt(match[1], 10);
-  const off = parseInt(match[2], 10);
-  const content = bytes.toString('utf8', dataStart + off, dataStart + off + sz);
-  if (content.includes(anchor)) {
-    targetMatch = match;
-    utilsContent = content;
-    break;
+function appRunning() {
+  try {
+    const out = execFileSync('tasklist', ['/FI', 'IMAGENAME eq Antigravity.exe', '/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true });
+    return /"Antigravity\.exe"/i.test(out);
+  } catch (e) {
+    return false;
   }
 }
 
-if (!targetMatch) {
-  console.error('[X] Cannot find utils.js anchor in app.asar!');
-  process.exit(1);
+function stopGuardian() {
+  return new Promise((resolve) => {
+    const sock = net.connect(PIPE, () => sock.write('quit'));
+    sock.on('data', () => {});
+    sock.on('close', () => setTimeout(() => resolve(true), 300));
+    sock.on('error', () => resolve(false));
+  });
 }
 
-if (utilsContent.includes(marker)) {
-  console.log('[OK] app.asar already has hook injected. Skipping patch.');
-} else {
-  console.log('[*] Injecting hook into utils.js...');
-  const anchorIdx = utilsContent.indexOf(anchor);
-  const lineStart = utilsContent.lastIndexOf('\n', anchorIdx) + 1;
+function startGuardian() {
+  spawn('wscript.exe', [STARTUP_VBS], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+}
 
-  const hook = `// === Antigravity custom-theme injection hook (start) ===
-        win.webContents.on('dom-ready', () => {
-            try {
-                const path_ = require('path');
-                const fs_ = require('fs');
-                const dirs = [
-                    path_.join(process.resourcesPath, 'custom-theme'),
-                    path_.join(process.env.APPDATA || '', 'Antigravity', 'custom-theme')
-                ];
-                const readThemeFile = (name) => {
-                    for (const d of dirs) {
-                        try {
-                            const f = path_.join(d, name);
-                            if (fs_.existsSync(f)) return fs_.readFileSync(f, 'utf8');
-                        } catch (e) { }
-                    }
-                    return null;
-                };
-                const css = readThemeFile('current.css');
-                if (css && css.trim()) win.webContents.insertCSS(css).catch(() => { });
-                const js = readThemeFile('current.js');
-                if (js && js.trim()) win.webContents.executeJavaScript(js, true).catch(() => { });
-            } catch (e) { }
-        });
-        // === Antigravity custom-theme injection hook (end) ===
-`;
+function writeStartup() {
+  const q = (s) => s.replace(/"/g, '""');
+  const vbs = `' Antigravity custom-theme guardian（由 install_permanent.js 生成）\r\n` +
+    `CreateObject("WScript.Shell").Run """${q(process.execPath)}"" ""${q(path.join(__dirname, 'guardian.js'))}""", 0, False\r\n`;
+  // wscript 按 UTF-16 LE 读带 BOM 的脚本，路径里有中文也不会乱码
+  fs.writeFileSync(STARTUP_VBS, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(vbs, 'utf16le')]));
+}
 
-  const newUtils = utilsContent.substring(0, lineStart) + hook + utilsContent.substring(lineStart);
-  const newUtilsBuf = Buffer.from(newUtils, 'utf8');
-
-  // 计算 integrity
-  const blockSize = parseInt(targetMatch[4], 10);
-  const blocks = [];
-  for (let i = 0; i < newUtilsBuf.length; i += blockSize) {
-    const chunk = newUtilsBuf.subarray(i, Math.min(newUtilsBuf.length, i + blockSize));
-    const h = crypto.createHash('sha256').update(chunk).digest('hex');
-    blocks.push(`"${h}"`);
+async function install() {
+  if (!fs.existsSync(asarPath)) throw new Error(`找不到 ${asarPath}`);
+  if (asarPatch.status(asarPath) === 'patched') {
+    console.log('[OK] app.asar 已有钩子');
+  } else if (appRunning()) {
+    console.log('[*] Antigravity 正在运行，app.asar 暂不改动：守护进程会先实时注入，关闭应用后自动打补丁');
+  } else {
+    const r = asarPatch.patch(asarPath);
+    console.log(r.changed ? `[OK] 已给 ${r.file} 打补丁并通过自检` : '[OK] app.asar 已有钩子');
   }
-  const fullHash = crypto.createHash('sha256').update(newUtilsBuf).digest('hex');
-
-  const newOffset = bytes.length - dataStart;
-  const newEntryJson = `"utils.js":{"size":${newUtilsBuf.length},"offset":"${newOffset}","integrity":{"algorithm":"SHA256","hash":"${fullHash}","blockSize":${blockSize},"blocks":[${blocks.join(',')}]}}`;
-
-  const newJson = json.substring(0, targetMatch.index) + newEntryJson + json.substring(targetMatch.index + targetMatch[0].length);
-  const newJsonBuf = Buffer.from(newJson, 'utf8');
-
-  const pad = (4 - (newJsonBuf.length % 4)) % 4;
-  const H = 8 + newJsonBuf.length + pad;
-  const newPayloadSize = 4 + newJsonBuf.length + pad;
-
-  const headerBuf = Buffer.alloc(16);
-  headerBuf.writeUInt32LE(4, 0);
-  headerBuf.writeUInt32LE(H, 4);
-  headerBuf.writeUInt32LE(newPayloadSize, 8);
-  headerBuf.writeUInt32LE(newJsonBuf.length, 12);
-
-  const padBuf = Buffer.alloc(pad, 0);
-  const rawDataBuf = bytes.subarray(dataStart);
-
-  const outBuf = Buffer.concat([headerBuf, newJsonBuf, padBuf, rawDataBuf, newUtilsBuf]);
-  fs.writeFileSync(asarPath, outBuf);
-  console.log('[OK] Successfully patched app.asar. New size:', outBuf.length);
+  writeStartup();
+  console.log('[OK] 已写入登录自启:', STARTUP_VBS);
+  if (await stopGuardian()) console.log('[*] 已停止旧守护进程');
+  startGuardian();
+  console.log('[OK] 守护进程已启动，日志:', path.join(__dirname, 'guardian.log'));
 }
 
-// 3. 验证
-const verifyBytes = fs.readFileSync(asarPath);
-const vJsonLen = verifyBytes.readUInt32LE(12);
-const vPayloadSize = verifyBytes.readUInt32LE(8);
-const vDataStart = 12 + vPayloadSize;
-const vJson = verifyBytes.toString('utf8', 16, 16 + vJsonLen);
-
-let verified = false;
-const vPattern = /"utils\.js":\{"size":(\d+),"offset":"(\d+)","integrity":\{"algorithm":"SHA256","hash":"([0-9a-f]{64})","blockSize":(\d+),"blocks":\[[^\]]*\]\}\}/g;
-let vm;
-while ((vm = vPattern.exec(vJson)) !== null) {
-  const sz = parseInt(vm[1], 10);
-  const off = parseInt(vm[2], 10);
-  const content = verifyBytes.toString('utf8', vDataStart + off, vDataStart + off + sz);
-  if (content.includes(marker)) {
-    const calcHash = crypto.createHash('sha256').update(Buffer.from(content, 'utf8')).digest('hex');
-    if (calcHash === vm[3]) {
-      verified = true;
-      break;
-    }
+async function uninstall() {
+  if (await stopGuardian()) console.log('[OK] 已停止守护进程');
+  if (fs.existsSync(STARTUP_VBS)) { fs.unlinkSync(STARTUP_VBS); console.log('[OK] 已删除登录自启'); }
+  const orig = `${asarPath}.orig`;
+  if (asarPatch.status(asarPath) !== 'patched') {
+    console.log('[OK] app.asar 没有钩子，无需还原');
+  } else if (appRunning()) {
+    console.log('[!] Antigravity 正在运行，关闭后再执行一次 --uninstall 以还原 app.asar');
+  } else if (fs.existsSync(orig)) {
+    fs.copyFileSync(orig, asarPath);
+    fs.unlinkSync(orig);
+    console.log('[OK] 已还原原始 app.asar');
+  } else {
+    console.log('[!] 没有找到 app.asar.orig，保留当前文件；重新安装 Antigravity 即可恢复原版');
   }
 }
 
-if (!verified) {
-  console.error('[X] Verification failed!');
+(process.argv.includes('--uninstall') ? uninstall() : install()).catch((e) => {
+  console.error('[X]', e.message);
   process.exit(1);
-}
-
-console.log('[OK] Self-verification passed: Hook verified & SHA256 integrity matched!');
-console.log('=== Installation Complete ===');
+});
