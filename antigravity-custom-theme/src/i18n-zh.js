@@ -134,7 +134,108 @@ module.exports.exact = {
   'Continue with Google': '使用 Google 继续', 'Getting started with Google Antigravity': 'Google Antigravity 入门',
   'Good response': '回答不错', 'Bad response': '回答不好', 'Write a comment...': '写评论…', 'Add inline comment': '添加行内评论',
   'Delete comment': '删除评论', 'Edit comment': '编辑评论', 'View comments': '查看评论', 'Request Review': '请求审阅',
+
+  // 设置页：分类与通用
+  'Models': '模型', 'Show All': '全部显示', 'Show Less': '收起', 'Not in Project': '不在项目中', 'Give Feedback': '提交反馈',
+  'Manage your plan, credentials, and general preferences.': '管理你的方案、凭据和常规偏好。',
+  'When toggled on, Antigravity collects usage data to help Google enhance performance and features.': '开启后，Antigravity 会收集使用数据，帮助 Google 改进性能和功能。',
+  'Marketing Emails': '营销邮件', 'Receive product updates, tips, and promotions from Google Antigravity via email.': '通过邮件接收 Google Antigravity 的产品更新、使用技巧和推广信息。',
+  'Your Plan:': '当前方案：', 'You can upgrade to a Google AI Ultra plan to receive higher rate limits.': '升级到 Google AI Ultra 方案可获得更高的速率上限。',
+  'Upgrade': '升级', 'Email': '邮箱', 'Sign Out': '退出登录', 'By using this app, you agree to its': '使用本应用即表示你同意其', 'Terms of Service': '服务条款',
+
+  // 设置页：会话与权限
+  'Configure global allowed and denied resource permissions.': '配置全局允许和禁止的资源权限。',
+  'Controls the actions the agent can take.': '控制智能体可以执行的操作。', 'Modified in': '已修改于',
+  'Modify permissions for file, terminal, and MCP tools.': '修改文件、终端和 MCP 工具的权限。',
+  'Configure allowed and denied URLs for reading.': '配置允许和禁止读取的网址。', 'Whether the agent asks you to review its documents.': '智能体是否请你审阅它写的文档。',
+  'and select': '并选择', 'to have the agent generate a plan.': '，让智能体生成计划。',
+  'Execution': '执行', 'Configure agent execution, queued message delivery, and permissions.': '配置智能体执行、排队消息的发送方式和权限。',
+  'Configure when follow-up messages are sent.': '配置追加消息何时发送。', 'Queue': '排队', 'Send Immediately': '立即发送',
+  'Configure allowed and denied paths for file reads and writes.': '配置允许和禁止读写的文件路径。',
+  'Configure allowed terminal commands.': '配置允许执行的终端命令。', 'Configure external tools via Model Context Protocol.': '通过 Model Context Protocol 配置外部工具。',
+  'Also includes': '同时包含', 'when working': '，适用于', 'in these conversations': '这些会话', 'in this project': '此项目',
+  'Inherit Global': '继承全局', 'Agent settings and permissions for conversations outside of projects.': '不属于任何项目的会话所用的智能体设置和权限。',
+  'Manage project folders, agent settings, and permissions.': '管理项目文件夹、智能体设置和权限。',
+  'Folders': '文件夹', 'Add Folder': '添加文件夹', 'Delete Project': '删除项目', 'Permanently delete': '永久删除', 'including': '，包括',
+
+  // 设置页：浏览器
+  'Keyboard shortcuts': '键盘快捷键', 'Built-in Browser': '内置浏览器', 'External Browser': '外部浏览器',
+  'Configure link opening and built-in browser preferences.': '配置链接的打开方式和内置浏览器偏好。',
+  'Choose where links open by default when clicked.': '选择点击链接时默认在哪里打开。',
+  'Configure the browser subagent. It requires': '配置浏览器子智能体。需要先安装',
+  'to be installed. The browser subagent can be invoked by typing /browser in the conversation input box.': '。在会话输入框中输入 /browser 即可调用浏览器子智能体。',
+  'Browser Javascript Execution Policy': '浏览器 JavaScript 执行策略',
+  'Controls whether the agent can run custom JavaScript to automate complex browser actions.': '控制智能体能否运行自定义 JavaScript 来自动完成复杂的浏览器操作。',
+  'Browser Actuation Rules': '浏览器操作规则', 'Configure allowed and denied URLs for browser actuation.': '配置允许和禁止智能体操作的网址。',
+
+  // 设置页：外观
+  "Configure the agent's visual theme and display preferences.": '配置智能体界面的主题和显示偏好。',
+  'Contrast': '对比度', 'Strong': '强', 'Preset': '预设', 'Default Light': '默认浅色', 'Default Dark': '默认深色',
+  'Background': '背景', 'Foreground': '前景', 'Accent': '强调色', 'Advanced Settings': '高级设置',
+  'Choose the experience that fits how you work.': '选择适合你工作方式的体验。', 'Choose between the Default and Project 4K experience.': '在默认体验和 Project 4K 体验之间选择。',
+
+  // 设置页：Jetski Chat
+  'Configure a chat bot so you can use Jetski directly from Google Chat.': '配置一个聊天机器人，直接在 Google Chat 里使用 Jetski。',
+  'For help, visit': '如需帮助，请访问', 'or join the': '或加入', 'chat space': '聊天空间', 'Setup': '配置',
+  'Bot Name': '机器人名称', 'Avatar URL': '头像网址', 'Setup Jetski Chat': '配置 Jetski Chat',
+  'Enter bot name (optional)': '输入机器人名称（可选）', 'Enter avatar URL (optional)': '输入头像网址（可选）',
+
+  // 设置页：通知
+  'Show system notifications when your action is needed or the agent finishes.': '需要你操作或智能体完成时显示系统通知。',
+  'Play a sound when your action is needed or the agent finishes.': '需要你操作或智能体完成时播放提示音。',
+  'Volume': '音量', 'Notification Settings': '通知设置', 'Manage your notification preferences.': '管理通知偏好。',
+  'Set the volume of agent sounds.': '设置智能体提示音的音量。', 'Browser Subagent': '浏览器子智能体',
+  // 「2 projects」被拆成数字和单词两个节点时
+  'projects': '个项目', 'project': '个项目',
+  "To modify notification settings, open your operating system's system preferences.": '要修改通知设置，请打开操作系统的系统偏好设置。',
+  'Open System Preferences': '打开系统偏好设置',
+
+  // 设置页：自定义
+  'Configure default behaviors, skills, and MCP servers.': '配置默认行为、技能和 MCP 服务器。',
+  'The breakdown below shows token usage from customizations like rules, skills, and MCP. If a budget is exceeded, large rules are demoted to path pointers and large customizations are excluded automatically.': '下面列出规则、技能、MCP 等自定义项占用的 token。超出预算时，较大的规则会降级为路径引用，较大的自定义项会被自动排除。',
+  'Other Customizations': '其他自定义', 'Global': '全局', 'Customize': '自定义',
+  'Build With Google Plugins': 'Build With Google 插件', 'Browse and enable plugins from the Build With Google catalog.': '从 Build With Google 目录浏览并启用插件。',
+
+  // 设置页：应用
+  'Manage Antigravity app settings.': '管理 Antigravity 应用设置。',
+  'Prevent the computer from sleeping while the app is running.': '应用运行时阻止电脑休眠。',
+  'Keep the app accessible from the menu bar and running in the background when all windows are closed.': '关闭所有窗口后仍在菜单栏保留入口，并在后台运行。',
+  'Work with local agents from another device.': '从其他设备使用本机的智能体。', 'Device Name': '设备名称', 'Enter device name...': '输入设备名称…',
+  'Scan the code to open this device in Remote Control, or': '扫码在远程控制中打开此设备，或',
+  'Version': '版本', 'App version': '应用版本',
+
+  // 设置页：反馈
+  'Feedback Type': '反馈类型', 'Bug Report': '问题报告', 'Feature Request': '功能建议', 'Auth and Billing': '认证与计费',
+  'Remote Control Issue': '远程控制问题', 'General Feedback': '一般反馈', 'Description': '描述',
+  'Please describe the issue in detail. The more actionable your feedback, the quicker our team can address your request. Some helpful information includes:': '请详细描述问题。反馈越具体，团队处理得越快。可以包括以下信息：',
+  'Steps to reproduce the issue': '问题的复现步骤', 'Expected behavior': '预期行为', 'Actual behavior': '实际行为',
+  'Any error messages': '错误信息', 'Any relevant information': '其他相关信息', 'Steps to Reproduce': '复现步骤',
+  'Attach a screenshot (optional)': '附加截图（可选）', 'Attach Antigravity server logs': '附加 Antigravity 服务端日志',
+  'Describe the bug you encountered...': '描述你遇到的问题…', 'Please list the steps to reproduce the issue': '请列出复现问题的步骤',
+  'Submit': '提交', 'Visit': '访问', 'Legal Help': '法律帮助', 'to ask for content changes for legal reasons.': '，因法律原因申请修改内容。',
+
+  // 设置页：快捷键
+  'Keyboard shortcuts for quick navigation and control.': '用于快速导航和操作的键盘快捷键。',
+  'Previous Aux Pane Tab': '上一个辅助面板标签', 'Next Aux Pane Tab': '下一个辅助面板标签', 'Find in Pane': '在面板中查找',
+  'Add to Chat/Quote': '添加到对话/引用', 'Layout Controls': '布局控制', 'Search shortcuts...': '搜索快捷键…',
+
+  // 设置页：模型与用量
+  'Models & Usage': '模型与用量', 'Enable AI Credit Overages': '启用 AI 点数超额使用',
+  "When toggled on, Antigravity will use your AI credits to fulfill model requests once you're out of model quota. Antigravity will always use your model quota first before using AI credits.": '开启后，模型配额用完时 Antigravity 会使用你的 AI 点数继续处理请求。Antigravity 总是先用模型配额，再用 AI 点数。',
+  'Refresh quota and credits data': '刷新配额和点数', 'Gemini Models': 'Gemini 模型', 'Claude and GPT models': 'Claude 和 GPT 模型',
+  'Weekly Limit Remaining': '本周剩余额度', 'Five Hour Limit Remaining': '5 小时剩余额度',
+
+  // 设置页：开发者
+  'Developer-only tools. These settings are stored locally in this browser and do not affect other users.': '仅供开发者使用的工具。这些设置只保存在本机，不影响其他用户。',
+  'Regroup Google3 Chats': '重新分组 Google3 会话', 'Google3 chats will be regrouped into their workspaces in the sidebar.': 'Google3 会话会在侧栏中按工作区重新分组。',
+  'This migration may mess up your settings, chats, and sidebar.': '这次迁移可能会打乱你的设置、会话和侧栏。',
+  'Follow the guide at': '请按照', 'to back up your data and run the migration.': '中的指引备份数据并运行迁移。',
 };
+
+// 只在后一个兄弟节点是指定内容时才翻的词：单独出现时意思不同（例如 Type 在别处是「类型」）
+module.exports.ctx = [
+  ['Type', '/', '输入'],
+];
 
 // [正则源码, 替换]：$1 等引用捕获组；按顺序尝试，命中即停
 module.exports.patterns = [
@@ -144,4 +245,15 @@ module.exports.patterns = [
   ['^Conversation (\\d+)$', '会话 $1'],
   ['^(\\d+)s$', '$1 秒'], ['^(\\d+)m$', '$1 分钟'], ['^(\\d+)h$', '$1 小时'], ['^(\\d+)d$', '$1 天'], ['^(\\d+)w$', '$1 周'], ['^(\\d+)mo$', '$1 个月'], ['^(\\d+)y$', '$1 年'],
   ['^(\\d+) files? changed$', '$1 个文件有改动'],
+  ['^(\\d+) projects?$', '$1 个项目'],
+  ['^(\\d+) active conversations? and (\\d+) archived conversations?$', '$1 个进行中的会话和 $2 个已归档的会话'],
+  ['^(\\d+) active conversations?$', '$1 个进行中的会话'],
+  ['^(\\d+) archived conversations?$', '$1 个已归档的会话'],
+  ['^Show (\\d+) breakdowns?$', '展开 $1 项明细'],
+  ['^Rules: ([\\d,]+) tokens$', '规则：$1 tokens'],
+  ['^Skills: ([\\d,]+) tokens$', '技能：$1 tokens'],
+  ['^Mcp Tools: ([\\d,]+) tokens$', 'MCP 工具：$1 tokens'],
+  ['^Send feedback as (.+)$', '以 $1 身份发送反馈'],
+  // 时长里的 day / hour / minute 由 i18n.js 统一换成中文
+  ['^You have used some of your weekly limit, it will fully refresh in (.+)\\.$', '本周额度已用掉一部分，将在 $1后完全恢复。'],
 ];

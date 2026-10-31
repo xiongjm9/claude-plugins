@@ -16,17 +16,98 @@
     const i18nPendingAttr = new Set();
     let i18nQueued = false;
 
-    function zhOf(raw) {
-        if (!raw || raw.length > 160) return null;
+    const I18N_CTX = I18N.ctx || [];
+    const CJK_EDGE = /[　-ヿ㐀-鿿＀-￯]/;
+
+    // 「1 day, 10 hours」→「1 天 10 小时」
+    function zhDuration(s) {
+        return s.replace(/(\d+)\s*(days?|hours?|minutes?|seconds?|weeks?)/g, (m, n, u) => n + ' ' + ({ d: '天', h: '小时', m: '分钟', s: '秒', w: '周' })[u[0]])
+            .replace(/,\s*/g, ' ').replace(/\s+and\s+/g, ' ');
+    }
+
+    // 后一个有文字的兄弟节点，用于按上下文翻译被拆开的短词
+    function nextSiblingText(n) {
+        for (let s = n.nextSibling; s; s = s.nextSibling) {
+            const t = (s.textContent || '').trim();
+            if (t) return t;
+        }
+        return '';
+    }
+
+    function zhOf(raw, node) {
+        if (!raw || raw.length > 400) return null;
         const t = raw.trim();
         if (!t || !/[A-Za-z]/.test(t)) return null;
         let zh = I18N_EXACT.get(t);
         if (zh === undefined) zh = I18N_LOWER.get(t.toLowerCase());
+        if (zh === undefined && node) {
+            for (const [word, next, to] of I18N_CTX) if (t === word && nextSiblingText(node) === next) { zh = to; break; }
+        }
         if (zh === undefined) {
-            for (const [re, to] of I18N_PATTERNS) if (re.test(t)) { zh = t.replace(re, to); break; }
+            for (const [re, to] of I18N_PATTERNS) if (re.test(t)) { zh = zhDuration(t.replace(re, to)); break; }
         }
         if (zh === undefined || zh === t) return null;
-        return raw.replace(t, () => zh);
+        // 原文两侧空格先保留（中英之间留空格）；译文边上是中文标点时去掉。中文与中文相邻的空格由 i18nTidy 收拾
+        const m = raw.match(/^(\s*)[\s\S]*?(\s*)$/);
+        const lead = CJK_PUNCT.test(zh[0]) ? '' : m[1];
+        const tail = CJK_PUNCT.test(zh[zh.length - 1]) ? '' : m[2];
+        return lead + zh + tail;
+    }
+
+    // ---- 拼句整理：一句话被拆成多个节点时，修掉中文之间的空格和英文标点 ----
+    const CJK_PUNCT = /[　-〿＀-￯]/;
+    const GLUE_RE = /^(\s*)([.,:;!?]?)(\s*)$/;
+    const FULL = { '.': '。', ',': '，', ':': '：', ';': '；', '!': '！', '?': '？' };
+    const INLINE = 'span, a, button, code, strong, em, b, i, kbd, small, label, sup, sub';
+    const blockOf = (n) => n.parentElement && (n.parentElement.closest(`:not(${INLINE})`) || n.parentElement);
+    const endsCjk = (s) => { s = s.trimEnd(); return !!s && CJK_EDGE.test(s[s.length - 1]); };
+    const startsCjk = (s) => { s = s.trimStart(); return !!s && CJK_EDGE.test(s[0]); };
+    const startsPunct = (s) => { s = s.trimStart(); return !!s && CJK_PUNCT.test(s[0]); };
+
+    function setTidy(n, v) {
+        if (n.nodeValue === v) return;
+        const rec = i18nMaps.text.get(n);
+        if (rec) rec.zh = v; else i18nMaps.text.set(n, { en: n.nodeValue, zh: v, gen: I18N_GEN, glue: true });
+        n.nodeValue = v;
+    }
+
+    // nodes：同一区域内按文档顺序排列的文本节点
+    function i18nTidy(nodes) {
+        for (let i = 0; i < nodes.length; i++) {
+            const n = nodes[i];
+            const blk = blockOf(n);
+            const prevN = i > 0 && blockOf(nodes[i - 1]) === blk ? nodes[i - 1] : null;
+            const nextN = i + 1 < nodes.length && blockOf(nodes[i + 1]) === blk ? nodes[i + 1] : null;
+            const prev = prevN ? prevN.nodeValue : '';
+            const next = nextN ? nextN.nodeValue : '';
+            const ours = (x) => !!x && i18nMaps.text.has(x) && !i18nMaps.text.get(x).glue;
+            const v = n.nodeValue;
+            if (ours(n)) {
+                let w = v;
+                if (/\s$/.test(w) && (startsCjk(next) && endsCjk(w))) w = w.trimEnd();
+                if (/^\s/.test(w) && endsCjk(prev) && startsCjk(w)) w = w.trimStart();
+                if (/^\s/.test(w) && startsPunct(w)) w = w.trimStart();
+                setTidy(n, w);
+                continue;
+            }
+            // 只有空格或一个英文标点的「胶水」节点，且挨着我们翻过的文字
+            const g = v.match(GLUE_RE);
+            if (!g || !v || !(ours(prevN) || ours(nextN))) continue;
+            if (g[2]) {
+                if (endsCjk(prev)) setTidy(n, FULL[g[2]] + (startsCjk(next) || !next ? '' : g[3]));
+            } else if ((endsCjk(prev) && startsCjk(next)) || startsPunct(next)) {
+                setTidy(n, '');
+            }
+        }
+    }
+
+    function textNodesIn(root) {
+        const out = [];
+        const w = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+            acceptNode: (n) => (n.nodeType === 3 ? NodeFilter.FILTER_ACCEPT : n.matches(I18N_SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP)
+        });
+        for (let n; (n = w.nextNode());) out.push(n);
+        return out;
     }
 
     function i18nTextNode(n, checked) {
@@ -34,7 +115,7 @@
         const rec = i18nMaps.text.get(n);
         if (rec && cur === rec.zh) { if (rec.gen !== I18N_GEN) { rec.gen = I18N_GEN; i18nCount++; } return; }
         if (!checked && (!n.parentElement || n.parentElement.closest(I18N_SKIP))) return;
-        const zh = zhOf(cur);
+        const zh = zhOf(cur, n);
         if (!zh) { if (rec) i18nMaps.text.delete(n); return; }
         i18nMaps.text.set(n, { en: cur, zh, gen: I18N_GEN });
         n.nodeValue = zh;
@@ -58,7 +139,12 @@
 
     function i18nWalk(root) {
         if (!root) return;
-        if (root.nodeType === 3) { i18nTextNode(root, false); return; }
+        if (root.nodeType === 3) {
+            i18nTextNode(root, false);
+            const blk = blockOf(root);
+            if (blk && i18nMaps.text.has(root) && !blk.closest(I18N_SKIP)) i18nTidy(textNodesIn(blk));
+            return;
+        }
         if (root.nodeType !== 1) return;
         const parent = root.parentElement;
         if (parent && parent.closest(I18N_SKIP)) return;
@@ -79,7 +165,9 @@
                 return NodeFilter.FILTER_SKIP;
             }
         });
-        for (let n; (n = w.nextNode());) i18nTextNode(n, true);
+        const texts = [];
+        for (let n; (n = w.nextNode());) { i18nTextNode(n, true); texts.push(n); }
+        i18nTidy(texts);
     }
 
     function i18nFlush() {

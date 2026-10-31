@@ -88,7 +88,7 @@ console.log(`i18n: ${Object.keys(zh.exact).length} 条词条，${zh.patterns.len
 let studio = src('studio.js')
   .replace('/*@@STUDIO_META@@*/', () => JSON.stringify(studioMeta))
   .replace('/*@@STUDIO_CSS@@*/', () => JSON.stringify(src('studio.css')))
-  .replace('/*@@I18N@@*/', () => src('i18n.js').replace('/*@@I18N_DICT@@*/', () => JSON.stringify({ exact: zh.exact, patterns: zh.patterns })));
+  .replace('/*@@I18N@@*/', () => src('i18n.js').replace('/*@@I18N_DICT@@*/', () => JSON.stringify({ exact: zh.exact, patterns: zh.patterns, ctx: zh.ctx || [] })));
 let out = src('engine.js')
   .replace('/*@@THEMES@@*/', () => themesExpr)
   .replace('/*@@STUDIO@@*/', () => studio);
