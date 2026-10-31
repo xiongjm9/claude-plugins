@@ -2,6 +2,17 @@
 
 以当前工具的参数说明、App 界面和实际返回为准。本文件和它们冲突时，按实际情况做，并告诉用户哪里不一样。
 
+## 哇点选型时的平台弱点（执行前必读）
+
+选「惊艳向」哇点时先过这一表：动态哇点在弱项上**降级**（放慢、拆镜、改静态反差），不是一律禁止。
+
+| 平台 | 已知弱点 | 哇点策略 |
+|---|---|---|
+| Meta Muse / Animate | 快速运动物理不稳、音画同步弱 | 优先反差光、强细节、非常规机位；节奏突变改成极慢推 + 强 ending；急推/闯入拆成 2 镜或改固定镜头 + 主体小动作 |
+| Grok Build `reference_to_video` | 大跨度景别运镜易漂；ZDR/额度可能直接失败 | 景别跨两级以上默认钉尾帧或拆镜；失败原话转告，不绕过 |
+| Grok Imagine App/API | 图生视频跟输入图比例；锁镜头勿写 stable | 画幅以**实测首帧像素比**为准；锁镜写 camera not moving |
+| 通用 | 界面参数可能被忽略 | 第 5 步技术规格验收卡住再往下 |
+
 ## Grok Build / Grok Bot（本机 `grok` CLI 与桌面端）
 
 来源：本机 `~/.grok/bundled/skills/imagine/SKILL.md`、`~/.grok/docs/user-guide/04-slash-commands.md`（grok 1.0.70）。
