@@ -41,7 +41,7 @@ body:not(.theme-light) {
   --ag-shadow-rest: 0 1px 2px rgba(0, 0, 0, 0.04);
   --ag-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 16px -12px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.90);
   --ag-shadow-float: 0 8px 20px -16px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  --ag-shadow-focus: 0 0 0 1px var(--sk-accent), 0 0 0 4px color-mix(in srgb, var(--sk-accent) 16%, transparent);
+  --ag-shadow-focus: 0 0 0 1px var(--sk-accent), 0 0 0 3.5px color-mix(in srgb, var(--sk-accent) 18%, transparent), 0 4px 16px -4px color-mix(in srgb, var(--sk-accent) 14%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.95);
 
   --background:              transparent !important;
   --foreground:              var(--sk-text) !important;
@@ -413,40 +413,7 @@ div[class*="absolute"][class*="right-0"][class*="top-0"] button:hover {
 }
 
 
-/* 顶栏工具栏中的主题切换按钮：100% 对齐 Open IDE 原生幽灵透明按钮风格，去除死白底色与阴影 */
-#antigravity-theme-btn {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  height: 24px !important;
-  width: auto !important;
-  min-width: unset !important;
-  max-width: none !important;
-  padding: 0 6px 0 8px !important;
-  white-space: nowrap !important;
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  font-family: inherit !important;
-  color: inherit !important;
-  background: transparent !important;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.35)) !important;
-  border-radius: 6px !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  flex: 0 0 auto !important;
-  gap: 5px !important;
-  line-height: 1 !important;
-}
-
-#antigravity-theme-btn span {
-  white-space: nowrap !important;
-  line-height: 1 !important;
-}@media (hover: hover) {
-#antigravity-theme-btn:hover {
-  background-color: color-mix(in srgb, var(--sk-surface) calc(25% * var(--sk-fill, 1)), transparent) !important;
-}
-}
+/* 顶栏工具栏中的外观入口按钮：在 studio.css 中统一规范（幽灵调色板图标），避免冲突 */
 
 
 
@@ -884,19 +851,17 @@ button[aria-label*="Send" i]:not(:disabled) svg {
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  [data-testid="send-button"]:not(:disabled),
-  button[data-tooltip-id*="input-send-button"]:not([aria-label*="Cancel" i]):not(:disabled),
-  button[aria-label*="Send" i]:not(:disabled) {
-    transition-property: background-color, box-shadow, color, scale !important;
-    transition-duration: 200ms, 200ms, 200ms, 150ms !important;
-    transition-timing-function: ease, ease, ease, ease-out !important;
-  }
-  [data-testid="send-button"]:not(:disabled):active,
-  button[data-tooltip-id*="input-send-button"]:not([aria-label*="Cancel" i]):not(:disabled):active,
-  button[aria-label*="Send" i]:not(:disabled):active {
-    scale: 0.97 !important;
-  }
+html[data-sk-motion]:not([data-sk-motion="off"]) [data-testid="send-button"]:not(:disabled),
+html[data-sk-motion]:not([data-sk-motion="off"]) button[data-tooltip-id*="input-send-button"]:not([aria-label*="Cancel" i]):not(:disabled),
+html[data-sk-motion]:not([data-sk-motion="off"]) button[aria-label*="Send" i]:not(:disabled) {
+  transition-property: background-color, box-shadow, color, transform !important;
+  transition-duration: 200ms, 200ms, 200ms, 150ms !important;
+  transition-timing-function: ease, ease, ease, ease-out !important;
+}
+html[data-sk-motion]:not([data-sk-motion="off"]) [data-testid="send-button"]:not(:disabled):active,
+html[data-sk-motion]:not([data-sk-motion="off"]) button[data-tooltip-id*="input-send-button"]:not([aria-label*="Cancel" i]):not(:disabled):active,
+html[data-sk-motion]:not([data-sk-motion="off"]) button[aria-label*="Send" i]:not(:disabled):active {
+  transform: scale(0.97) !important;
 }
 
 /* === 14. 全局滑动条：接管客户端原生 [data-testid="overlay-scrollbar-thumb"] ===
@@ -1331,24 +1296,24 @@ label[data-testid="ask-question-option"][class~="bg-secondary"] [data-testid="as
 
 
 
-/* === 19.  经典排版字体栈（Tiempos / Charter / Iowan / JetBrains Mono） === */
+/* === 19.  经典排版字体栈（Segoe UI Variable / SF Pro / PingFang / YaHei / Cascadia Code） === */
 .select-text p,
 .select-text li,
 .select-text blockquote,
 [class*="leading-relaxed"] p,
 [class*="leading-relaxed"] li {
-  font-family: "PingFang SC", "PingFangSC-Regular", "PingFangSC", "苹方-简", "苹方", -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif !important;
   line-height: 1.6 !important;
-  letter-spacing: 0 !important;
+  letter-spacing: -0.005em !important;
   font-size: 15px !important;
   text-wrap: pretty !important;
 }
 
 .select-text h1, .select-text h2, .select-text h3, .select-text h4,
 [class*="leading-relaxed"] h1, [class*="leading-relaxed"] h2, [class*="leading-relaxed"] h3 {
-  font-family: "PingFang SC", "PingFangSC-Semibold", "PingFangSC-Medium", "PingFangSC", "苹方-简", "苹方", -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif !important;
   font-weight: 600 !important;
-  letter-spacing: 0 !important;
+  letter-spacing: -0.015em !important;
   line-height: 1.3 !important;
 }
 
@@ -1356,14 +1321,14 @@ pre, code, kbd, samp,
 pre code,
 [class*="font-mono"],
 [class*="text-code"] {
-  font-family: "JetBrains Mono", "Fira Code", "SF Mono", Menlo, Monaco, Consolas, monospace !important;
+  font-family: "Cascadia Code", "JetBrains Mono", "Fira Code", "SF Mono", Menlo, Monaco, Consolas, monospace !important;
   font-size: 13px !important;
 }
 
 button, input, textarea,
 .bg-sidebar,
 [data-testid="pane-titlebar-toolbar"] {
-  font-family: "PingFang SC", "PingFangSC-Regular", "PingFangSC", "苹方-简", "苹方", -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif !important;
 }
 
 
@@ -1488,25 +1453,21 @@ div[data-mention-menu],
   overscroll-behavior: contain;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  html {
-    animation: ag-ambient 36s ease-in-out infinite alternate;
-  }
-  #antigravity-theme-dropdown,
-  div[data-mention-menu],
-  [role="menu"],
-  [data-radix-menu-content] {
-    animation: ag-rise 160ms cubic-bezier(0.2, 0, 0, 1) backwards;
-  }
+html[data-sk-motion="rich"] html {
+  animation: ag-ambient 36s ease-in-out infinite alternate;
+}
+html[data-sk-motion]:not([data-sk-motion="off"]) #antigravity-theme-dropdown,
+html[data-sk-motion]:not([data-sk-motion="off"]) div[data-mention-menu],
+html[data-sk-motion]:not([data-sk-motion="off"]) [role="menu"],
+html[data-sk-motion]:not([data-sk-motion="off"]) [data-radix-menu-content] {
+  animation: ag-rise 160ms cubic-bezier(0.2, 0, 0, 1) backwards;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  #antigravity-theme-dropdown,
-  div[data-mention-menu],
-  [role="menu"],
-  [data-radix-menu-content] {
-    animation: ag-fade 120ms ease-out backwards;
-  }
+html[data-sk-motion="off"] #antigravity-theme-dropdown,
+html[data-sk-motion="off"] div[data-mention-menu],
+html[data-sk-motion="off"] [role="menu"],
+html[data-sk-motion="off"] [data-radix-menu-content] {
+  animation: ag-fade 120ms ease-out backwards;
 }
 
 @keyframes ag-ambient {
@@ -1514,8 +1475,8 @@ div[data-mention-menu],
   to { background-position: 6% 2%, 94% -1%, 0 0; }
 }
 @keyframes ag-rise {
-  from { opacity: 0; translate: 0 4px; }
-  to { opacity: 1; translate: 0 0; }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 @keyframes ag-fade {
   from { opacity: 0; }

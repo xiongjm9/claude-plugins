@@ -347,6 +347,7 @@ const THEME_PREF_KEY = 'custom-theme-id';
         const theme = getTheme(activeId);
         const dot = document.querySelector('#antigravity-theme-selector .st-dot');
         const label = document.getElementById('antigravity-theme-label');
+        const btn = document.getElementById('antigravity-theme-btn');
         if (dot) {
             const c = activeId === 'stock' ? '#8E8E93' : effectiveAccent();
             if (dot.dataset.c && dot.dataset.c !== c) {
@@ -358,6 +359,10 @@ const THEME_PREF_KEY = 'custom-theme-id';
             dot.style.setProperty('--st-dot', c);
         }
         if (label) label.textContent = theme.name;
+        if (btn) {
+            btn.title = `外观设置 (Studio) · 当前: ${theme.name}`;
+            btn.setAttribute('aria-label', `外观设置 · 当前: ${theme.name}`);
+        }
     }
 
     // 挂载右上角主题选择器。官方改版后找不到工具区时，主界面出来 3 秒后改挂到标题栏下方的备用位置，保证面板始终能打开
@@ -380,16 +385,16 @@ const THEME_PREF_KEY = 'custom-theme-id';
         const currentId = activeThemeId();
         const container = document.createElement('div');
         container.id = 'antigravity-theme-selector';
-        container.style.cssText = 'position: relative; display: inline-flex; align-items: center; margin-right: 6px; flex: 0 0 auto; user-select: none; -webkit-app-region: no-drag; pointer-events: auto;';
+        container.style.cssText = 'position: relative; display: inline-flex; align-items: center; margin-right: 4px; flex: 0 0 auto; user-select: none; -webkit-app-region: no-drag; pointer-events: auto;';
 
         const btn = document.createElement('button');
         btn.id = 'antigravity-theme-btn';
         btn.type = 'button';
-        btn.title = '外观';
+        btn.title = '外观设置 (Studio)';
         btn.setAttribute('aria-haspopup', 'true');
         btn.setAttribute('aria-expanded', 'false');
         btn.style.webkitAppRegion = 'no-drag';
-        btn.innerHTML = '<span class="st-dot"></span><span id="antigravity-theme-label"></span>';
+        btn.innerHTML = '<svg class="st-palette-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 1.5C4.41 1.5 1.5 4.41 1.5 8C1.5 11.59 4.41 14.5 8 14.5C8.83 14.5 9.5 13.83 9.5 13C9.5 12.61 9.35 12.26 9.11 11.99C8.88 11.72 8.73 11.38 8.73 11C8.73 10.17 9.4 9.5 10.23 9.5H11.5C13.16 9.5 14.5 8.16 14.5 6.5C14.5 3.74 11.59 1.5 8 1.5Z" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="6" r="0.85" fill="currentColor"/><circle cx="8" cy="4.5" r="0.85" fill="currentColor"/><circle cx="11" cy="6" r="0.85" fill="currentColor"/><circle class="st-dot" cx="6.5" cy="10" r="1.35" fill="var(--st-dot, var(--st-accent))"/></svg><span id="antigravity-theme-label" class="sr-only"></span>';
         btn.onclick = (e) => { e.stopPropagation(); studioToggle(); };
 
         container.appendChild(btn);
