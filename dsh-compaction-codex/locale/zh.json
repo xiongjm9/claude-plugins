@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Codex 式上下文压缩",
+    "description": "按 OpenAI Codex 的方式压缩长对话：由模型为全部历史写一份交接摘要，并原文保留你最近的消息。替换 standard、ptc、minimal、cordis 预设中的内置压缩。"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Codex-style Compaction",
+    "description": "Compacts long conversations the way OpenAI Codex does: the model writes a handoff summary of the whole history, and your recent messages are kept word for word. Replaces the built-in compaction in the standard, ptc, minimal and cordis presets."
+  }
+}
