@@ -23,6 +23,7 @@ $Marker = "git-guard pre-push stub"
 $Manifest = Join-Path $StateDir "installed.json"
 $GuardPath = Join-Path $StateDir "pre-push-guard.sh"
 $Utf8 = New-Object System.Text.UTF8Encoding($false)
+try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
 $Depth = @{ "D:\code" = 1; "D:\workSpace" = 4 }
 
 function Write-Lf([string]$Path, [string]$Text) {
@@ -85,7 +86,8 @@ function Get-Submodules([string]$Repo) {
 function Resolve-Target([string]$Repo) {
     $top = & git -C $Repo rev-parse --show-toplevel 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $top) { return $null }
-    $top = [IO.Path]::GetFullPath($top)
+    try { $top = [IO.Path]::GetFullPath($top) }
+    catch { $top = [IO.Path]::GetFullPath($Repo) }
     $abs = {
         param($p)
         if ([IO.Path]::IsPathRooted($p)) { [IO.Path]::GetFullPath($p) } else { [IO.Path]::GetFullPath((Join-Path $top $p)) }
@@ -96,14 +98,21 @@ function Resolve-Target([string]$Repo) {
     $t = [PSCustomObject]@{ Repo = $top; Mode = "git"; Target = (Join-Path $hooksDir "pre-push"); Exclude = $exclude; Skip = $null }
     if ($hooksPath) {
         $huskyDir = $null
-        if ((Split-Path -Leaf $hooksDir) -eq "_" -and (Test-Path -LiteralPath (Join-Path $hooksDir "h"))) {
+        $direct = $false
+        if ((Split-Path -Leaf $hooksDir) -eq "_") {
             $huskyDir = Split-Path -Parent $hooksDir
+            if (-not (Test-Path -LiteralPath (Join-Path $hooksDir "h"))) { $direct = $true }
         } elseif ((Split-Path -Leaf $hooksDir) -eq ".husky") {
             $huskyDir = $hooksDir
         }
         if (-not $huskyDir) { $t.Skip = "core.hooksPath=$hooksPath is not husky; left alone"; return $t }
-        $t.Mode = "husky"
-        $t.Target = Join-Path $huskyDir "pre-push"
+        if ($direct) {
+            $t.Mode = "husky-raw"
+            $t.Target = Join-Path $hooksDir "pre-push"
+        } else {
+            $t.Mode = "husky"
+            $t.Target = Join-Path $huskyDir "pre-push"
+        }
         $rel = $t.Target.Substring($top.Length).TrimStart('\', '/') -replace '\\', '/'
         & git -C $top ls-files --error-unmatch -- $rel 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) { $t.Skip = "$rel is tracked by the repo; left alone" }
@@ -142,7 +151,7 @@ function Install-One($T, [string]$Stub, $Records) {
     if ($DryRun) { return "would be $action" }
     if ($hasFile -and -not $isOurs) { Move-Item -LiteralPath $T.Target -Destination $orig }
     Write-Lf $T.Target $Stub
-    if ($T.Mode -eq "husky") {
+    if ($T.Mode -like "husky*") {
         $rel = $T.Target.Substring($T.Repo.Length).TrimStart('\', '/') -replace '\\', '/'
         Add-Exclude $T.Exclude @($rel, "$rel.git-guard-orig")
     }
@@ -181,7 +190,7 @@ function Uninstall-All {
             if (-not $DryRun) { Move-Item -LiteralPath $e.Orig -Destination $e.Target }
             $state = "restored old pre-push"
         }
-        if ($e.Mode -eq "husky" -and -not $DryRun) { Remove-Exclude $e.Exclude }
+        if ($e.Mode -like "husky*" -and -not $DryRun) { Remove-Exclude $e.Exclude }
         "{0,-30} {1}" -f $state, $e.Repo
     }
     if (-not $DryRun) {

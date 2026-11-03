@@ -28,6 +28,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 2. 给每个仓库写一个 pre-push 小脚本：
    - 普通仓库写到 `.git/hooks/pre-push`。如果原来已有 pre-push（比如 yorkie 生成的），先改名为 `pre-push.git-guard-orig`，检查通过后照常执行它。
    - husky v9 仓库（`core.hooksPath=.husky/_`）写到 `.husky/pre-push`，并加进 `.git/info/exclude`，所以不会出现在 `git status` 里。如果仓库已经跟踪了 `.husky/pre-push`，就跳过这个仓库。
+   - 如果 `core.hooksPath` 指向 `.husky/_`，但 `_` 还没生成（没跑过 `husky`），直接把钩子写到 `.husky/_/pre-push` 并加入 exclude。以后运行 `husky` 可能重新生成 `_`，届时再跑一次 `install.ps1` 即可。
    - 其它 `core.hooksPath` 的仓库不动。
 3. 把 `antigravity/` 装到 `~/.gemini/config/plugins/git-guard/`。新开对话后生效，没生效就重启 Antigravity。
 4. 把改了什么记到 `%APPDATA%\git-guard\installed.json`，卸载时按这份记录还原。
