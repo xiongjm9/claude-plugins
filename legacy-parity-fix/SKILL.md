@@ -1,6 +1,6 @@
 ---
 name: legacy-parity-fix
-description: 已翻新的 Vue3 页面与旧 C# ERP 行为不一致时做单点修复：测试 bug 单、"对比老系统/和老系统保持一致"、数据源或字典反显不对、校验/文案/默认值/按钮显隐/提交参数与旧系统不同。先锁定仓库、分支和文件，再按旧源码逐项比对，只改差异。整模块翻新用 cshtml-to-vue3，提取旧页面需求用 legacy-cshtml-requirements。
+description: 已翻新的 Vue3 页面与旧 C# ERP 行为不一致时做单点修复：测试 bug 单、对照旧ERP、对照老系统、"对比老系统/和老系统保持一致"、数据源或字典反显不对、校验/文案/默认值/按钮显隐/提交参数与旧系统不同。先锁定仓库、分支和文件，再按旧源码逐项比对，只改差异。整模块翻新用 cshtml-to-vue3，提取旧页面需求用 legacy-cshtml-requirements。
 ---
 
 # 翻新页面单点修复（对齐旧系统）
