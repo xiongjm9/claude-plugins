@@ -123,19 +123,40 @@ function Resolve-Target([string]$Repo) {
 function Add-Exclude([string]$File, [string[]]$Patterns) {
     $text = ""
     if (Test-Path -LiteralPath $File) { $text = [IO.File]::ReadAllText($File) }
-    if ($text -match '# >>> git-guard') { return }
+    $wanted = @($Patterns | ForEach-Object { "/$_" } | Select-Object -Unique)
+    if ($text -match '# >>> git-guard') {
+        $m = [regex]::Match($text, '(?s)# >>> git-guard\r?\n(.*?)# <<< git-guard')
+        $existing = @()
+        if ($m.Success) {
+            $existing = @($m.Groups[1].Value -split "\r?\n" | Where-Object { $_.Trim() })
+        }
+        $missing = @($wanted | Where-Object { $existing -notcontains $_ })
+        if ($missing.Count -eq 0) { return }
+        $newBlock = "# >>> git-guard`n" + (($existing + $missing) -join "`n") + "`n# <<< git-guard"
+        $text = [regex]::Replace($text, '(?s)# >>> git-guard\r?\n.*?# <<< git-guard', { param($x) $newBlock })
+        [IO.File]::WriteAllText($File, $text, $Utf8)
+        return
+    }
     if ($text.Length -gt 0 -and -not $text.EndsWith("`n")) { $text += "`n" }
-    $text += "# >>> git-guard`n" + (($Patterns | ForEach-Object { "/$_" }) -join "`n") + "`n# <<< git-guard`n"
+    $text += "# >>> git-guard`n" + ($wanted -join "`n") + "`n# <<< git-guard`n"
     $dir = Split-Path -Parent $File
     if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     [IO.File]::WriteAllText($File, $text, $Utf8)
 }
 
-function Remove-Exclude([string]$File) {
+function Remove-Exclude([string]$File, [string[]]$Patterns) {
     if (-not (Test-Path -LiteralPath $File)) { return }
     $text = [IO.File]::ReadAllText($File)
-    $new = [regex]::Replace($text, '(?s)# >>> git-guard\r?\n.*?# <<< git-guard\r?\n?', '')
-    if ($new -ne $text) { [IO.File]::WriteAllText($File, $new, $Utf8) }
+    $m = [regex]::Match($text, '(?s)# >>> git-guard\r?\n(.*?)# <<< git-guard\r?\n?')
+    if (-not $m.Success) { return }
+    $wanted = @($Patterns | ForEach-Object { "/$_" })
+    $remaining = @($m.Groups[1].Value -split "\r?\n" | Where-Object { $_.Trim() -and $wanted -notcontains $_.Trim() })
+    $newBlock = ""
+    if ($remaining.Count -gt 0) {
+        $newBlock = "# >>> git-guard`n" + ($remaining -join "`n") + "`n# <<< git-guard`n"
+    }
+    $text = [regex]::Replace($text, '(?s)# >>> git-guard\r?\n.*?# <<< git-guard\r?\n?', { param($x) $newBlock })
+    [IO.File]::WriteAllText($File, $text, $Utf8)
 }
 
 function Install-One($T, [string]$Stub, $Records) {
@@ -190,7 +211,10 @@ function Uninstall-All {
             if (-not $DryRun) { Move-Item -LiteralPath $e.Orig -Destination $e.Target }
             $state = "restored old pre-push"
         }
-        if ($e.Mode -like "husky*" -and -not $DryRun) { Remove-Exclude $e.Exclude }
+        if ($e.Mode -like "husky*" -and -not $DryRun) {
+            $rel = $e.Target.Substring($e.Repo.Length).TrimStart('\', '/') -replace '\\', '/'
+            Remove-Exclude $e.Exclude @($rel, "$rel.git-guard-orig")
+        }
         "{0,-30} {1}" -f $state, $e.Repo
     }
     if (-not $DryRun) {
