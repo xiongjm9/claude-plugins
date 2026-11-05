@@ -24,6 +24,24 @@ DANGER = [
 ]
 SKIP_CLAUDE_PREFIX = ("<command-name>", "<local-command", "This session is being continued")
 SKIP_MARKERS = ("local-command-stdout", "<system-reminder>", "tool_result", "tool_use_id")
+CONTINUED = "This session is being continued"
+
+# Phrases that contain a REWORK keyword but are not a correction of the AI.
+# They are blanked out before matching, so other keywords in the same prompt still count.
+_STOP = r"[^，。,.!?！？；;\n]"
+NOT_REWORK = [re.compile(p) for p in (
+    r"不对(应|劲|称)",                              # 不对应 / 不对劲
+    r"对不对",                                       # a question
+    rf"我{_STOP}{{0,6}}(说|弄|写|搞|打)错了",          # the user correcting themselves
+    rf"(如果|就|会){_STOP}{{0,8}}报错了",              # describing error handling
+    rf"(不要|无|没有|有没有|是否|防|避免){_STOP}{{0,12}}遗漏",  # instructions and questions
+    r"还有遗漏[吗嘛么]?",
+    r"少了约", r"少了\d", r"如果少了",
+    rf"我{_STOP}{{0,12}}(撤销|还原|回滚)",             # the user did it themselves
+    r"原封不动地?还原",                              # "restore the legacy text verbatim"
+    rf"你没有{_STOP}{{0,10}}的话",                    # conditional, not a complaint
+)]
+PASTED = re.compile(r"<pasted_content\b[^>]*>.*?</pasted_content>", re.S)
 
 
 def local_range(since, until, tz_hours):
@@ -64,6 +82,9 @@ def claude_prompts(path, start, end):
                 except Exception:
                     continue
                 if rec.get("type") != "user":
+                    continue
+                # isMeta: injected skill bodies; isCompactSummary: the post-compaction summary.
+                if rec.get("isMeta") or rec.get("isCompactSummary") or rec.get("isSidechain"):
                     continue
                 ts = parse_ts(rec.get("timestamp"))
                 if not ts or not (start <= ts < end):
@@ -160,8 +181,15 @@ def grok_prompts(root, start_local, end_local, tz):
                         continue
                     if rec.get("type") != "user":
                         continue
+                    # synthetic_reason marks messages Grok wrote itself, e.g. compaction summaries.
+                    if rec.get("synthetic_reason"):
+                        continue
                     text = strip_reminders(content_text(rec.get("content")))
-                    if text:
+                    # Only the <user_query> part is the user's; skill bodies and context follow it.
+                    m = re.search(r"<user_query>(.*?)</user_query>", text, re.S)
+                    if m:
+                        text = m.group(1).strip()
+                    if text and not text.startswith(CONTINUED):
                         prompts.append((mtime, text))
         except OSError:
             continue
@@ -170,8 +198,18 @@ def grok_prompts(root, start_local, end_local, tz):
     return out
 
 
+def is_rework(text):
+    # A message that opens with a Markdown heading is a pasted task brief; its "不要改X" lines are constraints.
+    if re.match(r"\s*#{1,6}\s", text):
+        return False
+    text = PASTED.sub(" ", text)  # pasted documents are not the user's own words
+    for pattern in NOT_REWORK:
+        text = pattern.sub(" ", text)
+    return any(k in text for k in REWORK)
+
+
 def rework_count(prompts):
-    return sum(1 for _, text in prompts[1:] if any(k in text for k in REWORK))
+    return sum(1 for _, text in prompts[1:] if is_rework(text))
 
 
 def main():
@@ -250,7 +288,7 @@ def main():
     for name, sessions, _ in tools:
         samples = []
         for path, prompts in sessions:
-            hits = [text for _, text in prompts[1:] if any(k in text for k in REWORK)]
+            hits = [text for _, text in prompts[1:] if is_rework(text)]
             if hits:
                 samples.append((session_label(path, name), hits[0].replace("\n", " ")[:160]))
         if samples:
@@ -279,6 +317,7 @@ def main():
     lines.append("")
     lines.append("- 只统计用户本人发出的消息；排除斜杠命令、系统提醒、子代理和工具结果。")
     lines.append("- 返工按后续提示里的明确纠错说法计数，每个会话的第一条不计。换新会话重做统计不到，所以是下限。")
+    lines.append("- 不算返工：用户自己纠正口误（我说错了）、描述报错处理（如果报错了）、要求或询问（不要遗漏、有没有遗漏）、用户自己撤销、以 Markdown 标题开头的任务说明，以及粘贴的文档。")
     lines.append("- Claude Code 和 Antigravity 用日志内时间戳；Grok CLI 的 `chat_history.jsonl` 没有时间戳，按文件修改时间归入当天，标 `≈`。")
     lines.append("- 危险 git 字符串只扫描 Antigravity transcript 的 tool_calls，不代表每一条都被执行。")
     lines.append("")
