@@ -1,0 +1,6 @@
+# Host rows. Tools and the /rewind command apply to every preset.
+- insert:
+    - id: claude-parity
+      name: dsh-claude-parity
+      config:
+        cdpPort: 9222
