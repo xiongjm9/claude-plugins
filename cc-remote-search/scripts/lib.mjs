@@ -13,25 +13,72 @@ const BLOCKED_NAMES = new Set([
   "metadata.internal",
 ]);
 
-export function isPrivateIp(ip) {
-  const raw = String(ip).toLowerCase().replace(/^\[|\]$/g, "");
-  const mapped = raw.startsWith("::ffff:") ? raw.slice(7) : raw;
-  if (mapped.includes(":")) {
-    if (mapped === "::1" || mapped === "::") return true;
-    if (mapped.startsWith("fe80:")) return true;
-    if (mapped.startsWith("fc") || mapped.startsWith("fd")) return true;
-    return false;
-  }
-  const parts = mapped.split(".").map((part) => Number(part));
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
-    return true;
-  }
+function isPrivateIpv4(parts) {
   const [a, b] = parts;
   if (a === 0 || a === 10 || a === 127) return true;
   if (a === 169 && b === 254) return true;
   if (a === 172 && b >= 16 && b <= 31) return true;
   if (a === 192 && b === 168) return true;
   if (a === 100 && b >= 64 && b <= 127) return true;
+  if (a >= 224) return true; // multicast, reserved, broadcast
+  // 198.18.0.0/15 stays allowed: fake-ip proxies resolve every public name there.
+  return false;
+}
+
+function parseIpv4(text) {
+  const parts = text.split(".").map((part) => (/^\d{1,3}$/.test(part) ? Number(part) : NaN));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part > 255)) return null;
+  return parts;
+}
+
+/** Expand an IPv6 literal into eight 16-bit words, or null when it does not parse. */
+function parseIpv6(text) {
+  let body = text.replace(/%.*$/, "");
+  let tail = [];
+  const dotted = body.match(/^(.*:)(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) {
+    const v4 = parseIpv4(dotted[2]);
+    if (!v4) return null;
+    tail = [(v4[0] << 8) | v4[1], (v4[2] << 8) | v4[3]];
+    body = dotted[1].endsWith("::") ? dotted[1] : dotted[1].slice(0, -1);
+  }
+  const halves = body.split("::");
+  if (halves.length > 2) return null;
+  const toWords = (part) => (part === "" ? [] : part.split(":"));
+  const head = toWords(halves[0]);
+  const rest = halves.length === 2 ? toWords(halves[1]) : [];
+  if ([...head, ...rest].some((word) => !/^[0-9a-f]{1,4}$/.test(word))) return null;
+  const known = head.length + rest.length + tail.length;
+  if (halves.length === 1 ? known !== 8 : known > 7) return null;
+  const fill = new Array(8 - known).fill(0);
+  return [...head.map((w) => parseInt(w, 16)), ...fill, ...rest.map((w) => parseInt(w, 16)), ...tail];
+}
+
+export function isPrivateIp(ip) {
+  const raw = String(ip).toLowerCase().replace(/^\[|\]$/g, "");
+  if (!raw.includes(":")) {
+    const v4 = parseIpv4(raw);
+    return v4 ? isPrivateIpv4(v4) : true;
+  }
+  const words = parseIpv6(raw);
+  if (!words) return true;
+  const embedded = (hi, lo) => [hi >> 8, hi & 0xff, lo >> 8, lo & 0xff];
+  // ::/96 (unspecified, loopback, IPv4-compatible) and ::ffff:0:0/96 (IPv4-mapped): judge the IPv4 tail.
+  if (words.slice(0, 5).every((w) => w === 0) && (words[5] === 0 || words[5] === 0xffff)) {
+    if (words[5] === 0 && words[6] === 0) return true; // :: and ::1
+    return isPrivateIpv4(embedded(words[6], words[7]));
+  }
+  // NAT64 64:ff9b::/96 carries an IPv4 address in the last 32 bits.
+  if (words[0] === 0x64 && words[1] === 0xff9b && words.slice(2, 6).every((w) => w === 0)) {
+    return isPrivateIpv4(embedded(words[6], words[7]));
+  }
+  // 6to4 2002::/16 carries an IPv4 address in bits 16-47.
+  if (words[0] === 0x2002) return isPrivateIpv4(embedded(words[1], words[2]));
+  const first = words[0];
+  if ((first & 0xfe00) === 0xfc00) return true; // fc00::/7 unique local
+  if ((first & 0xffc0) === 0xfe80) return true; // fe80::/10 link local
+  if ((first & 0xffc0) === 0xfec0) return true; // fec0::/10 site local (deprecated)
+  if ((first & 0xff00) === 0xff00) return true; // multicast
   return false;
 }
 

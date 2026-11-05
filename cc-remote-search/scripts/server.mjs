@@ -31,10 +31,9 @@ const tools = [
   },
 ];
 
+// MCP stdio transport: one JSON-RPC message per line, no Content-Length headers.
 function send(message) {
-  const body = Buffer.from(JSON.stringify(message));
-  process.stdout.write(`Content-Length: ${body.length}\r\n\r\n`);
-  process.stdout.write(body);
+  process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
 function result(id, payload) {
@@ -73,7 +72,7 @@ async function handle(message) {
     result(id, {
       protocolVersion: params?.protocolVersion || "2024-11-05",
       capabilities: { tools: {} },
-      serverInfo: { name: "cc-remote-search", version: "1.0.0" },
+      serverInfo: { name: "cc-remote-search", version: "1.0.1" },
     });
     return;
   }
@@ -100,27 +99,18 @@ let buffer = Buffer.alloc(0);
 process.stdin.on("data", (chunk) => {
   buffer = Buffer.concat([buffer, chunk]);
   for (;;) {
-    const headerEnd = buffer.indexOf("\r\n\r\n");
-    if (headerEnd === -1) {
-      const lineEnd = buffer.indexOf("\n");
-      if (lineEnd === -1 || buffer.subarray(0, lineEnd).includes("Content-Length")) return;
-      const line = buffer.subarray(0, lineEnd).toString("utf8").trim();
-      buffer = buffer.subarray(lineEnd + 1);
-      if (!line) continue;
-      handle(JSON.parse(line)).catch((error) => process.stderr.write(`${error.message}\n`));
+    const lineEnd = buffer.indexOf("\n");
+    if (lineEnd === -1) return;
+    const line = buffer.subarray(0, lineEnd).toString("utf8").trim();
+    buffer = buffer.subarray(lineEnd + 1);
+    if (!line) continue;
+    let message;
+    try {
+      message = JSON.parse(line);
+    } catch {
+      send({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } });
       continue;
     }
-    const header = buffer.subarray(0, headerEnd).toString("utf8");
-    const match = header.match(/Content-Length:\s*(\d+)/i);
-    if (!match) {
-      buffer = buffer.subarray(headerEnd + 4);
-      continue;
-    }
-    const length = Number(match[1]);
-    const start = headerEnd + 4;
-    if (buffer.length < start + length) return;
-    const body = buffer.subarray(start, start + length).toString("utf8");
-    buffer = buffer.subarray(start + length);
-    handle(JSON.parse(body)).catch((error) => process.stderr.write(`${error.message}\n`));
+    handle(message).catch((error) => process.stderr.write(`${error.message}\n`));
   }
 });

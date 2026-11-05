@@ -4,7 +4,7 @@ import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { isFirstPartyBaseUrl } from "../scripts/hook.mjs";
-import { isPrivateIp, parseDdgHtml, parseRss, unwrapSearchUrl } from "../scripts/lib.mjs";
+import { assertPublicHttpUrl, isPrivateIp, parseDdgHtml, parseRss, unwrapSearchUrl } from "../scripts/lib.mjs";
 
 test("private addresses are rejected", () => {
   assert.equal(isPrivateIp("8.8.8.8"), false);
@@ -14,6 +14,29 @@ test("private addresses are rejected", () => {
   assert.equal(isPrivateIp("169.254.169.254"), true);
   assert.equal(isPrivateIp("::1"), true);
   assert.equal(isPrivateIp("::ffff:127.0.0.1"), true);
+});
+
+test("ipv6 forms that embed a private ipv4 are rejected", () => {
+  // URL normalizes [::ffff:127.0.0.1] to this hex form.
+  assert.equal(isPrivateIp("[::ffff:7f00:1]"), true);
+  assert.equal(isPrivateIp("::ffff:a9fe:a9fe"), true);
+  assert.equal(isPrivateIp("::7f00:1"), true);
+  assert.equal(isPrivateIp("0:0:0:0:0:ffff:c0a8:0101"), true);
+  assert.equal(isPrivateIp("64:ff9b::a00:1"), true);
+  assert.equal(isPrivateIp("2002:7f00:1::"), true);
+  assert.equal(isPrivateIp("fe80::1%12"), true);
+  assert.equal(isPrivateIp("fd12:3456::1"), true);
+  assert.equal(isPrivateIp("ff02::1"), true);
+  assert.equal(isPrivateIp("not:an:ip::zz"), true);
+  assert.equal(isPrivateIp("::ffff:8.8.8.8"), false);
+  assert.equal(isPrivateIp("2606:4700:4700::1111"), false);
+  assert.equal(isPrivateIp("198.18.0.1"), false);
+});
+
+test("hex-mapped loopback urls are refused before fetching", async () => {
+  for (const url of ["http://[::ffff:127.0.0.1]/", "http://[::ffff:a9fe:a9fe]/latest/meta-data", "http://[::127.0.0.1]/"]) {
+    await assert.rejects(assertPublicHttpUrl(url), /拒绝访问本机或内网地址/);
+  }
 });
 
 test("official Anthropic hosts stay on native web tools", () => {
@@ -31,12 +54,12 @@ test("rss and duckduckgo html parse into public links", () => {
   assert.equal(unwrapSearchUrl("https://www.bing.com/ck/a?u=a1aHR0cHM6Ly9leGFtcGxlLmNvbS9j"), "https://example.com/c");
 });
 
+// MCP stdio transport: newline-delimited JSON, the framing Claude Code sends and expects back.
 function frame(message) {
-  const body = Buffer.from(JSON.stringify(message));
-  return Buffer.concat([Buffer.from(`Content-Length: ${body.length}\r\n\r\n`), body]);
+  return `${JSON.stringify(message)}\n`;
 }
 
-test("mcp server lists both tools", async () => {
+test("mcp server speaks newline-delimited json and lists both tools", async () => {
   const child = spawn(process.execPath, ["scripts/server.mjs"], {
     cwd: fileURLToPath(new URL("..", import.meta.url)),
     stdio: ["pipe", "pipe", "pipe"],
@@ -58,6 +81,9 @@ test("mcp server lists both tools", async () => {
   child.stdin.end();
   await once(child, "exit");
   const raw = output.toString("utf8");
-  assert.match(raw, /"name":"web_search"/);
-  assert.match(raw, /"name":"web_fetch"/);
+  assert.doesNotMatch(raw, /Content-Length/i);
+  const replies = raw.split("\n").filter(Boolean).map((line) => JSON.parse(line));
+  assert.deepEqual(replies.map((reply) => reply.id), [1, 2]);
+  assert.equal(replies[0].result.serverInfo.name, "cc-remote-search");
+  assert.deepEqual(replies[1].result.tools.map((tool) => tool.name), ["web_search", "web_fetch"]);
 });
