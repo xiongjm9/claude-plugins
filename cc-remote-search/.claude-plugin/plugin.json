@@ -1,7 +1,7 @@
 {
   "name": "cc-remote-search",
   "displayName": "Remote Search",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "第三方模型或网关关掉原生 WebSearch/WebFetch 时，用本机搜索和网页抓取补上只读联网。",
   "author": {
     "name": "local"

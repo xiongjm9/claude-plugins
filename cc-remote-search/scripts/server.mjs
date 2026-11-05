@@ -4,7 +4,7 @@ const tools = [
   {
     name: "web_search",
     description:
-      "搜索公开网页。Claude Code 接第三方模型或自定义网关时原生 WebSearch 不可用，用这个工具代替。返回标题、链接和摘要。",
+      "搜索公开网页，返回标题、链接和摘要。原生 WebSearch 不存在、报错或返回空结果时用它。",
     inputSchema: {
       type: "object",
       properties: {
@@ -18,12 +18,17 @@ const tools = [
   {
     name: "web_fetch",
     description:
-      "抓取一个公开 http(s) 页面并返回纯文本。代替原生 WebFetch。拒绝本机、内网和云 metadata 地址。",
+      "抓取一个公开 http(s) 页面并返回纯文本，自动识别 GBK 等编码。长页面分段返回，结尾会给出下一段的 start_index。原生 WebFetch 不可用时用它。拒绝本机、内网和云 metadata 地址。",
     inputSchema: {
       type: "object",
       properties: {
         url: { type: "string", description: "要读取的 http 或 https 地址" },
-        max_chars: { type: "integer", minimum: 500, maximum: 50000, description: "最多返回的字符数，默认 12000" },
+        max_chars: { type: "integer", minimum: 500, maximum: 50000, description: "本段最多返回的字符数，默认 12000" },
+        start_index: {
+          type: "integer",
+          minimum: 0,
+          description: "从正文第几个字符开始读，默认 0。读下一段时填上次结尾给出的值",
+        },
       },
       required: ["url"],
       additionalProperties: false,
@@ -57,9 +62,19 @@ async function callTool(name, args) {
     return { content: [{ type: "text", text: `来源：${found.provider}\n\n${text}` }] };
   }
   if (name === "web_fetch") {
-    const page = await webFetch(args.url, args.max_chars);
-    const note = page.truncated ? "\n\n[内容已截断]" : "";
-    return { content: [{ type: "text", text: `${page.url}\n${page.contentType}\n\n${page.text}${note}` }] };
+    const page = await webFetch(args.url, args.max_chars, args.start_index);
+    const header = [
+      page.url,
+      `${page.contentType}; ${page.charset}`,
+      `第 ${page.start}–${page.end} 字符，共 ${page.total} 字符`,
+    ];
+    if (page.bodyCapped) header.push("原始页面超过 2MB，只读取了前 2MB");
+    const tail =
+      page.nextStart === null
+        ? "\n\n[已到结尾]"
+        : `\n\n[未完，后面还有 ${page.total - page.end} 字符。继续读用 start_index=${page.nextStart}]`;
+    const body = page.text.length > 0 ? page.text : `（start_index=${page.start} 已超过正文长度）`;
+    return { content: [{ type: "text", text: `${header.join("\n")}\n\n${body}${tail}` }] };
   }
   throw new Error(`未知工具 ${name}`);
 }
@@ -72,7 +87,7 @@ async function handle(message) {
     result(id, {
       protocolVersion: params?.protocolVersion || "2024-11-05",
       capabilities: { tools: {} },
-      serverInfo: { name: "cc-remote-search", version: "1.0.1" },
+      serverInfo: { name: "cc-remote-search", version: "1.1.0" },
     });
     return;
   }

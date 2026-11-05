@@ -234,7 +234,80 @@ function htmlToText(html) {
   );
 }
 
-export async function webFetch(rawUrl, maxChars = 12000) {
+const MAX_BODY_BYTES = 2_000_000;
+
+export function charsetFromContentType(type) {
+  const match = /charset\s*=\s*["']?\s*([\w.:-]+)/i.exec(type || "");
+  return match ? match[1].toLowerCase() : "";
+}
+
+function bomCharset(bytes) {
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return "utf-8";
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return "utf-16le";
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return "utf-16be";
+  return "";
+}
+
+function metaCharset(bytes) {
+  const head = Buffer.from(bytes.subarray(0, 4096)).toString("latin1");
+  const match =
+    /<meta[^>]+charset\s*=\s*["']?\s*([\w.:-]+)/i.exec(head) || /<\?xml[^>]+encoding\s*=\s*["']([\w.:-]+)/i.exec(head);
+  return match ? match[1].toLowerCase() : "";
+}
+
+/**
+ * Decode a response body. Order follows the HTML spec: BOM, then the Content-Type
+ * charset, then <meta charset>. An undeclared body that is not valid UTF-8 is
+ * decoded as GB18030, the usual case for older Chinese sites.
+ */
+export function decodeBody(bytes, contentType) {
+  const declared = bomCharset(bytes) || charsetFromContentType(contentType) || metaCharset(bytes);
+  if (declared) {
+    try {
+      return { text: new TextDecoder(declared).decode(bytes), charset: declared };
+    } catch {
+      return { text: new TextDecoder("utf-8").decode(bytes), charset: `utf-8（不支持声明的 ${declared}）` };
+    }
+  }
+  try {
+    // stream: true keeps a multi-byte character cut at the size cap from counting as invalid.
+    return { text: new TextDecoder("utf-8", { fatal: true }).decode(bytes, { stream: true }), charset: "utf-8" };
+  } catch {
+    return { text: new TextDecoder("gb18030").decode(bytes), charset: "gb18030（未声明，按中文编码猜测）" };
+  }
+}
+
+/** Slice converted text for paging; never splits a surrogate pair. */
+export function pageText(text, startIndex, maxChars) {
+  const total = text.length;
+  const start = Math.min(Math.max(0, Math.floor(Number(startIndex) || 0)), total);
+  let end = Math.min(total, start + maxChars);
+  if (end < total && end > start) {
+    const code = text.charCodeAt(end - 1);
+    if (code >= 0xd800 && code <= 0xdbff) end -= 1;
+  }
+  return { text: text.slice(start, end), start, end, total, nextStart: end < total ? end : null };
+}
+
+async function readCapped(response, limit) {
+  const reader = response.body?.getReader();
+  if (!reader) return { bytes: new Uint8Array(0), capped: false };
+  const chunks = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    size += value.length;
+    if (size >= limit) {
+      await reader.cancel().catch(() => {});
+      return { bytes: Buffer.concat(chunks).subarray(0, limit), capped: true };
+    }
+  }
+  return { bytes: Buffer.concat(chunks), capped: false };
+}
+
+export async function webFetch(rawUrl, maxChars = 12000, startIndex = 0) {
   const limit = Math.min(50000, Math.max(500, Number(maxChars) || 12000));
   let current = await assertPublicHttpUrl(rawUrl);
   let response;
@@ -252,20 +325,22 @@ export async function webFetch(rawUrl, maxChars = 12000) {
     }
     break;
   }
-  if (!response || !response.ok) throw new Error(`HTTP ${response ? response.status : "无响应"}`);
+  if (response.status >= 300 && response.status < 400) throw new Error("重定向次数过多");
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const type = (response.headers.get("content-type") || "").toLowerCase();
   if (type && !/text\/|application\/(json|xml|xhtml|javascript)|application\/octet-stream/.test(type)) {
+    await response.body?.cancel().catch(() => {});
     throw new Error(`不抓取该内容类型：${type.split(";")[0]}`);
   }
-  const bytes = Buffer.from(await response.arrayBuffer()).subarray(0, 500_000);
-  const text = /html|xml/.test(type) || /<html[\s>]/i.test(bytes.slice(0, 400).toString("utf8"))
-    ? htmlToText(bytes.toString("utf8"))
-    : bytes.toString("utf8");
-  const clipped = text.slice(0, limit);
+  const { bytes, capped } = await readCapped(response, MAX_BODY_BYTES);
+  const decoded = decodeBody(bytes, type);
+  const isHtml = /html|xml/.test(type) || /<html[\s>]/i.test(decoded.text.slice(0, 400));
+  const page = pageText(isHtml ? htmlToText(decoded.text) : decoded.text, startIndex, limit);
   return {
     url: current.href,
     contentType: type.split(";")[0] || "unknown",
-    truncated: text.length > clipped.length,
-    text: clipped,
+    charset: decoded.charset,
+    bodyCapped: capped,
+    ...page,
   };
 }

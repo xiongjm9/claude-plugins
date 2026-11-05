@@ -3,8 +3,107 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { isFirstPartyBaseUrl } from "../scripts/hook.mjs";
-import { assertPublicHttpUrl, isPrivateIp, parseDdgHtml, parseRss, unwrapSearchUrl } from "../scripts/lib.mjs";
+import { decide, isFirstParty, isFirstPartyBaseUrl, searchMode } from "../scripts/hook.mjs";
+import {
+  assertPublicHttpUrl,
+  decodeBody,
+  isPrivateIp,
+  pageText,
+  parseDdgHtml,
+  parseRss,
+  unwrapSearchUrl,
+} from "../scripts/lib.mjs";
+
+// "中文网页" in GBK.
+const GBK = Buffer.from([0xd6, 0xd0, 0xce, 0xc4, 0xcd, 0xf8, 0xd2, 0xb3]);
+
+test("bodies decode by BOM, header, meta, then a GB18030 guess", () => {
+  assert.equal(decodeBody(GBK, "text/html; charset=GBK").text, "中文网页");
+  const meta = Buffer.concat([Buffer.from('<html><head><meta charset="gb2312"></head><body>'), GBK]);
+  assert.match(decodeBody(meta, "text/html").text, /中文网页/);
+  const httpEquiv = Buffer.concat([
+    Buffer.from('<meta http-equiv="Content-Type" content="text/html; charset=gbk"><p>'),
+    GBK,
+  ]);
+  assert.match(decodeBody(httpEquiv, "text/html").text, /中文网页/);
+  const guessed = decodeBody(GBK, "text/html");
+  assert.equal(guessed.text, "中文网页");
+  assert.match(guessed.charset, /gb18030/);
+  assert.equal(decodeBody(Buffer.from("中文", "utf8"), "").charset, "utf-8");
+  const bom = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("中文", "utf8")]);
+  assert.equal(decodeBody(bom, "text/html; charset=gbk").text, "中文");
+});
+
+test("utf-8 cut mid-character at the size cap is not mistaken for GBK", () => {
+  const cut = Buffer.from("正文中文", "utf8").subarray(0, 10);
+  assert.equal(decodeBody(cut, "text/html").charset, "utf-8");
+});
+
+test("unknown declared charsets fall back to utf-8 instead of throwing", () => {
+  assert.match(decodeBody(Buffer.from("abc"), "text/html; charset=x-made-up").charset, /不支持声明的 x-made-up/);
+});
+
+test("pages slice with a next start and never split a surrogate pair", () => {
+  const first = pageText("abcdefghij", 0, 4);
+  assert.deepEqual([first.text, first.nextStart, first.total], ["abcd", 4, 10]);
+  const last = pageText("abcdefghij", 8, 4);
+  assert.deepEqual([last.text, last.nextStart], ["ij", null]);
+  assert.equal(pageText("abc", 99, 4).text, "");
+  const emoji = pageText("ab😀cd", 0, 3);
+  assert.equal(emoji.text, "ab");
+  assert.equal(pageText("ab😀cd", emoji.nextStart, 3).text, "😀c");
+});
+
+test("search mode: auto tries native tools, on denies them, off stays silent", () => {
+  const gateway = { ANTHROPIC_BASE_URL: "http://gw.example.test/coding-plan" };
+  const preTool = { hook_event_name: "PreToolUse", tool_name: "WebSearch" };
+  const start = { hook_event_name: "SessionStart" };
+  assert.equal(searchMode("ON"), "on");
+  assert.equal(searchMode("bogus"), "auto");
+
+  assert.deepEqual(decide(preTool, gateway), {});
+  assert.match(decide(start, gateway).hookSpecificOutput.additionalContext, /先用原生工具/);
+
+  const on = { ...gateway, CC_REMOTE_SEARCH: "on" };
+  assert.equal(decide(preTool, on).hookSpecificOutput.permissionDecision, "deny");
+  assert.match(decide(start, on).hookSpecificOutput.additionalContext, /已停用/);
+  assert.equal(decide(preTool, { CC_REMOTE_SEARCH: "on" }).hookSpecificOutput.permissionDecision, "deny");
+
+  assert.deepEqual(decide(start, { ...gateway, CC_REMOTE_SEARCH: "off" }), {});
+  assert.deepEqual(decide(start, {}), {});
+  assert.deepEqual(decide({ hook_event_name: "PreToolUse", tool_name: "Bash" }, on), {});
+});
+
+test("bedrock, vertex and foundry count as third party even without a base url", () => {
+  assert.equal(isFirstParty({}), true);
+  assert.equal(isFirstParty({ CLAUDE_CODE_USE_BEDROCK: "1" }), false);
+  assert.equal(isFirstParty({ CLAUDE_CODE_USE_VERTEX: "true" }), false);
+  assert.equal(isFirstParty({ CLAUDE_CODE_USE_FOUNDRY: "1" }), false);
+  assert.equal(isFirstParty({ CLAUDE_CODE_USE_BEDROCK: "0" }), true);
+  assert.match(
+    decide({ hook_event_name: "SessionStart" }, { CLAUDE_CODE_USE_BEDROCK: "1" }).hookSpecificOutput.additionalContext,
+    /remote-search/,
+  );
+});
+
+test("hook process tolerates a BOM and a malformed payload", async () => {
+  const run = (stdin, env) =>
+    new Promise((resolve) => {
+      const child = spawn(process.execPath, ["scripts/hook.mjs"], {
+        cwd: fileURLToPath(new URL("..", import.meta.url)),
+        env: { ...process.env, ...env },
+      });
+      let out = "";
+      child.stdout.on("data", (chunk) => (out += chunk));
+      child.on("exit", (code) => resolve({ code, out }));
+      child.stdin.end(stdin);
+    });
+  const denied = await run('﻿{"hook_event_name":"PreToolUse","tool_name":"WebFetch"}', { CC_REMOTE_SEARCH: "on" });
+  assert.equal(denied.code, 0);
+  assert.equal(JSON.parse(denied.out).hookSpecificOutput.permissionDecision, "deny");
+  const broken = await run("not json", { CC_REMOTE_SEARCH: "on" });
+  assert.deepEqual([broken.code, JSON.parse(broken.out)], [0, {}]);
+});
 
 test("private addresses are rejected", () => {
   assert.equal(isPrivateIp("8.8.8.8"), false);
