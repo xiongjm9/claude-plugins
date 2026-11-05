@@ -26,8 +26,9 @@ node install_permanent.js
 
 1. 应用关闭时给 `app.asar` 打钩子（运行中则留给守护进程）。
 2. 在「启动」文件夹写入 `antigravity-custom-theme-guardian.vbs`，登录后静默运行 `guardian.js`。
+3. 登记当前用户的计划任务，每 5 分钟再拉起一次。守护进程已在运行时，新进程碰到命名管道就退出。
 
-Antigravity 每次更新都会整体替换 `app.asar`，钩子随之丢失。守护进程负责恢复：
+Antigravity 每次更新都会整体替换 `app.asar`，钩子随之丢失。登录自启只在下次登录时跑；进程若在本次登录中退出，就靠这个计划任务把它拉回来。守护进程负责恢复：
 
 - 应用运行中：通过它自带的调试端口（`DevToolsActivePort`）给未加载主题的窗口补注入。
 - 应用关闭且 `app.asar` 30 秒内没被改动：钩子丢了就重新打补丁，原件备份为 `app.asar.orig`。

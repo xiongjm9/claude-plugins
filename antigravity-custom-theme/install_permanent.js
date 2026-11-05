@@ -21,6 +21,7 @@ const asarPatch = require('./asar-patch');
 
 const PIPE = '\\\\.\\pipe\\antigravity-custom-theme-guardian';
 const STARTUP_VBS = path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'antigravity-custom-theme-guardian.vbs');
+const TASK_NAME = 'Antigravity custom-theme guardian';
 const asarPath = asarPatch.defaultAsarPath();
 
 function appRunning() {
@@ -53,6 +54,28 @@ function writeStartup() {
   fs.writeFileSync(STARTUP_VBS, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(vbs, 'utf16le')]));
 }
 
+// 登录自启只在下次登录时跑。守护进程若在本次登录中退出，更新替换 app.asar 时就没人补钩子。
+// 计划任务每 5 分钟再拉起一次；命名管道已被占用时新进程立刻退出。
+function registerTask() {
+  execFileSync('schtasks', [
+    '/Create', '/F',
+    '/TN', TASK_NAME,
+    '/SC', 'MINUTE',
+    '/MO', '5',
+    '/IT',
+    '/TR', `wscript.exe "${STARTUP_VBS}"`,
+  ], { windowsHide: true, stdio: 'pipe' });
+}
+
+function unregisterTask() {
+  try {
+    execFileSync('schtasks', ['/Delete', '/TN', TASK_NAME, '/F'], { windowsHide: true, stdio: 'pipe' });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 async function install() {
   if (!fs.existsSync(asarPath)) throw new Error(`找不到 ${asarPath}`);
   if (asarPatch.status(asarPath) === 'patched') {
@@ -65,6 +88,13 @@ async function install() {
   }
   writeStartup();
   console.log('[OK] 已写入登录自启:', STARTUP_VBS);
+  try {
+    registerTask();
+    console.log('[OK] 已登记计划任务，每 5 分钟拉起一次守护进程（已在运行则立即退出）');
+  } catch (e) {
+    const detail = (e.stderr && e.stderr.toString().trim()) || e.message;
+    console.log('[!] 计划任务没登记上，仍保留登录自启:', detail);
+  }
   if (await stopGuardian()) console.log('[*] 已停止旧守护进程');
   startGuardian();
   console.log('[OK] 守护进程已启动，日志:', path.join(__dirname, 'guardian.log'));
@@ -73,6 +103,7 @@ async function install() {
 async function uninstall() {
   if (await stopGuardian()) console.log('[OK] 已停止守护进程');
   if (fs.existsSync(STARTUP_VBS)) { fs.unlinkSync(STARTUP_VBS); console.log('[OK] 已删除登录自启'); }
+  if (unregisterTask()) console.log('[OK] 已删除计划任务');
   const orig = `${asarPath}.orig`;
   const st = asarPatch.status(asarPath);
   if (st !== 'patched' && st !== 'outdated') {
