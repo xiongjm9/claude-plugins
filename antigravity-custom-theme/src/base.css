@@ -805,10 +805,19 @@ button[aria-label*="Scroll to bottom" i] svg {
   color: var(--sk-text) !important;
 }
 
-/* 语音胶囊：官方用 bg-foreground + text-background。本主题把 --background 做成透明，
-   波形图标的 currentColor 就变成全透明，深色圆底上只剩一坨黑。改回纸色，深浅皮肤都对比得开。 */
-[data-testid="voice-live-pill"] {
-  color: var(--sk-sidebar) !important;
+/* 语音胶囊闲置时和「添加上下文」同一档：线框，图标用正文色。
+   官方是 bg-foreground + text-background。--background 在本主题里是透明的，
+   不改的话波形会消失，实心圆也会抢停止键的层级。录音中的官方样式不动。 */
+[data-testid="voice-live-pill"]:has([data-testid="voice-start-button"]) {
+  background: transparent !important;
+  color: var(--sk-text) !important;
+  box-shadow: inset 0 0 0 1px var(--sk-line) !important;
+}
+@media (hover: hover) {
+  [data-testid="voice-live-pill"]:has([data-testid="voice-start-button"]):hover {
+    background: color-mix(in srgb, var(--sk-text) 6%, transparent) !important;
+    opacity: 1 !important;
+  }
 }
 
 /* 发送按钮默认/未激活态（淡雅半透） */

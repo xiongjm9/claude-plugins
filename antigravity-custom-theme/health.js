@@ -45,6 +45,15 @@ const PAGE_CHECKS = `(async () => {
   if (i18n && i18n.lang === 'zh') add('界面汉化', i18n.active && i18n.count > 0, i18n.active ? '已翻译 ' + i18n.count + ' 处' : '没有启动', true);
   const composer = $('div[class*="bg-card-border"]:has(textarea), div[class*="bg-card-border"]:has([contenteditable="true"])');
   add('界面锚点：输入框', !!composer, composer ? '' : '当前页面没有输入框，或官方改了结构（进一个对话再查一次）', true);
+  const voice = $('[data-testid="voice-live-pill"]');
+  if (voice && voice.querySelector('[data-testid="voice-start-button"]')) {
+    const wave = voice.querySelector('rect, path');
+    const fill = wave ? getComputedStyle(wave).fill : '';
+    const bg = getComputedStyle(voice).backgroundColor;
+    const inkGone = !wave || fill === 'rgba(0, 0, 0, 0)' || fill === 'transparent';
+    const stillSolid = bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
+    add('语音按钮', !inkGone && !stillSolid, inkGone ? '波形是透明的' : (stillSolid ? '还是实心圆 ' + bg : '线框'), true);
+  }
   // 启动偏好：第一帧用的皮肤与 nativeStorage 里保存的一致，说明 boot.json 起作用
   try {
     const items = await window.nativeStorage.getItems();
