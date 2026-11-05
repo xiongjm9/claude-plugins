@@ -1,0 +1,13 @@
+{
+  "name": "local-claude-plugins",
+  "owner": {
+    "name": "local"
+  },
+  "plugins": [
+    {
+      "name": "cc-remote-search",
+      "source": "./cc-remote-search",
+      "description": "第三方模型或网关关掉原生 WebSearch/WebFetch 时，用本机搜索和网页抓取补上只读联网。"
+    }
+  ]
+}
