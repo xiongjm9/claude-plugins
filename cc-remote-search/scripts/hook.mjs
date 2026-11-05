@@ -39,11 +39,14 @@ export function isFirstParty(env) {
   return isFirstPartyBaseUrl(env.ANTHROPIC_BASE_URL);
 }
 
-const FALLBACK_CONTEXT =
-  "当前会话不是直连 Anthropic 官方接口，原生 WebSearch / WebFetch 能否用取决于网关。先用原生工具；工具不存在、报错或返回空结果时，改用 remote-search MCP 的 web_search 和 web_fetch。web_fetch 能识别 GBK 等中文编码，长页面按结尾提示的 start_index 继续读。不要用 Bash 访问搜索引擎代替它们。";
+// Plugin MCP tools are exposed as mcp__plugin_<plugin>_<server>__<tool>; models guess wrong without the full name.
+const SEARCH_TOOL = "mcp__plugin_cc-remote-search_remote-search__web_search";
+const FETCH_TOOL = "mcp__plugin_cc-remote-search_remote-search__web_fetch";
+const TOOL_NAMES = `搜索用 ${SEARCH_TOOL}，抓取用 ${FETCH_TOOL}（工具名要写全）`;
 
-const FORCED_CONTEXT =
-  "CC_REMOTE_SEARCH=on：原生 WebSearch 和 WebFetch 已停用。公开网页搜索用 remote-search MCP 的 web_search，打开链接用 web_fetch；web_fetch 长页面按结尾提示的 start_index 继续读。不要用 Bash 访问搜索引擎代替它们。";
+const FALLBACK_CONTEXT = `当前会话不是直连 Anthropic 官方接口，原生 WebSearch / WebFetch 能否用取决于网关。先用原生工具；工具不存在、报错或返回空结果时改用本机工具：${TOOL_NAMES}。抓取能识别 GBK 等中文编码，长页面按结尾提示的 start_index 继续读。不要用 Bash 访问搜索引擎代替它们。`;
+
+const FORCED_CONTEXT = `CC_REMOTE_SEARCH=on：原生 WebSearch 和 WebFetch 已停用。${TOOL_NAMES}。长页面按结尾提示的 start_index 继续读。不要用 Bash 访问搜索引擎代替它们。`;
 
 /** Hook output for one event; {} means "no opinion". */
 export function decide(input, env) {
@@ -60,12 +63,12 @@ export function decide(input, env) {
     };
   }
   if (mode === "on" && event === "PreToolUse" && (input.tool_name === "WebSearch" || input.tool_name === "WebFetch")) {
-    const replacement = input.tool_name === "WebSearch" ? "web_search" : "web_fetch";
+    const replacement = input.tool_name === "WebSearch" ? SEARCH_TOOL : FETCH_TOOL;
     return {
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
         permissionDecision: "deny",
-        permissionDecisionReason: `CC_REMOTE_SEARCH=on，原生 ${input.tool_name} 已停用。改用 remote-search MCP 的 ${replacement}。`,
+        permissionDecisionReason: `CC_REMOTE_SEARCH=on，原生 ${input.tool_name} 已停用。改用 ${replacement}。`,
       },
     };
   }

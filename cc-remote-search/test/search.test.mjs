@@ -62,7 +62,9 @@ test("search mode: auto tries native tools, on denies them, off stays silent", (
   assert.equal(searchMode("bogus"), "auto");
 
   assert.deepEqual(decide(preTool, gateway), {});
-  assert.match(decide(start, gateway).hookSpecificOutput.additionalContext, /先用原生工具/);
+  const hint = decide(start, gateway).hookSpecificOutput.additionalContext;
+  assert.match(hint, /先用原生工具/);
+  assert.ok(hint.includes("mcp__plugin_cc-remote-search_remote-search__web_fetch"), "hint names the full tool id");
 
   const on = { ...gateway, CC_REMOTE_SEARCH: "on" };
   assert.equal(decide(preTool, on).hookSpecificOutput.permissionDecision, "deny");

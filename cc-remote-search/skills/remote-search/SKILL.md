@@ -7,8 +7,10 @@ description: 在 Claude Code 使用第三方模型、自定义 ANTHROPIC_BASE_UR
 
 原生 `WebSearch` 和 `WebFetch` 能不能用取决于网关。默认先用原生工具；工具不存在、报错或返回空结果时，改用本插件 MCP `remote-search` 的工具。`CC_REMOTE_SEARCH=on` 时原生工具会被拒绝，直接用下面两个。
 
-- `web_search`：公开网页搜索。参数 `query`，可选 `max_results`（1–8，默认 5）。
-- `web_fetch`：抓取一个 http(s) 页面并返回纯文本。参数 `url`，可选 `max_chars`（默认 12000）、`start_index`（默认 0）。
+- `mcp__plugin_cc-remote-search_remote-search__web_search`：公开网页搜索。参数 `query`，可选 `max_results`（1–8，默认 5）。
+- `mcp__plugin_cc-remote-search_remote-search__web_fetch`：抓取一个 http(s) 页面并返回纯文本。参数 `url`，可选 `max_chars`（默认 12000）、`start_index`（默认 0）。
+
+调用时工具名要写全，`mcp__remote-search__web_fetch` 这类简写不存在。下文简称 `web_search` / `web_fetch`。
 
 用法：
 
