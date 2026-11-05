@@ -805,6 +805,12 @@ button[aria-label*="Scroll to bottom" i] svg {
   color: var(--sk-text) !important;
 }
 
+/* 语音胶囊：官方用 bg-foreground + text-background。本主题把 --background 做成透明，
+   波形图标的 currentColor 就变成全透明，深色圆底上只剩一坨黑。改回纸色，深浅皮肤都对比得开。 */
+[data-testid="voice-live-pill"] {
+  color: var(--sk-sidebar) !important;
+}
+
 /* 发送按钮默认/未激活态（淡雅半透） */
 [data-testid="send-button"],
 button[data-tooltip-id*="input-send-button"]:not([aria-label*="Cancel" i]),
