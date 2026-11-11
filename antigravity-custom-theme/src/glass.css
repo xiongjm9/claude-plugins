@@ -43,6 +43,21 @@ html[data-sk-motion="rich"][data-sk-idle] #sk-wall .sk-wall-img { animation-play
   opacity: var(--sk-wall-veil, 0.4);
 }
 
+/* 新版 agy-inset-shell 用 --shell 铺满标题栏以下。有壁纸时让开，否则壁纸整块看不见。
+   磨砂/通透再盖一层半透明，滑杆改的是 --sk-fill。 */
+html[data-sk-wall] .agy-inset-shell {
+  --shell-canvas: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+html[data-sk-glass] .agy-inset-shell {
+  --shell-canvas: color-mix(in srgb, var(--sk-base) calc(var(--sk-fill) * 100%), transparent) !important;
+  background-color: var(--shell-canvas) !important;
+  background-image: none !important;
+  backdrop-filter: var(--sk-filter) !important;
+  -webkit-backdrop-filter: var(--sk-filter) !important;
+}
+
 /* 有壁纸时：纵向侧栏与吸顶标头改成玻璃，让壁纸透出来 */
 html[data-sk-wall] div[class*="flex-col"][class*="bg-sidebar"]:not(div[class*="flex-col"][class*="bg-sidebar"] *) {
   background-color: color-mix(in srgb, var(--sk-sidebar) calc(72% * var(--sk-fill, 1)), transparent) !important;

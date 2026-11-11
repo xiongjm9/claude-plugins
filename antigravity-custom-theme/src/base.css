@@ -47,6 +47,9 @@ body:not(.theme-light) {
   --foreground:              var(--sk-text) !important;
   --content:                 transparent !important;
   --sidebar:                 var(--sk-sidebar) !important;
+  /* 新版主画布读 html 内联的 --shell（官方 onyx 固定 #FAFAFA），不跟 --sidebar。
+     内联没有 !important，这里必须用 !important，换皮肤才会改到那块底。 */
+  --shell:                   var(--sk-base) !important;
   /* 关键：必须保持 transparent。一旦给值，侧栏每个项目行都会变成白色小积木 */
   --sidebar-secondary:       transparent !important;
   --sidebar-muted:           transparent !important;
