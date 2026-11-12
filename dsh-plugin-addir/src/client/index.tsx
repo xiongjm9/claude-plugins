@@ -7,8 +7,9 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { HostObservable, PropsHooks, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { IconEditOutlineRegular, MenuItemButton } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { installWorkspaceMenu } from './workspace-menu.ts'
+import { installWorkspaceMenu, workspaceKeyForSession } from './workspace-menu.ts'
 import { AddirSettingsSection } from './SettingsSection.tsx'
 import { WorkspaceAddirModal, type EditTarget, type EditorActions } from './WorkspaceAddirModal.tsx'
 import { en, zh, type CopyKey } from './locales.ts'
@@ -26,6 +27,19 @@ export const inject = ['slots', 'locale', 'workspaces', 'uiWorkspace']
 type OverlayProps = PropsRuntime<'shell.overlay'> & PropsLocale<'addir'>
   & PropsHooks<{ editRequest: HostObservable<EditTarget | null> }>
   & EditorActions & { closeEdit: () => void }
+type SessionEditProps = PropsRuntime<'sidebar.workspaces.session.menu.item'> & PropsLocale<'addir'> & {
+  resolveSession: (sessionId: string) => EditTarget | undefined
+  open: (target: EditTarget) => void
+}
+function SessionEditMenuItem({ sessionId, useMenuOpenState, t, resolveSession, open }: SessionEditProps) {
+  const [, setMenuOpen] = useMenuOpenState()
+  const target = resolveSession(sessionId)
+  if (target === undefined) return null
+  return <MenuItemButton separatorBefore icon={<IconEditOutlineRegular />} onSelect={() => {
+    setMenuOpen(false)
+    open(target)
+  }}>{t('edit')}</MenuItemButton>
+}
 function EditOverlay({ useEditRequest, closeEdit, t, ...actions }: OverlayProps) {
   const target = useEditRequest(value => value)
   return target === null ? null : <WorkspaceAddirModal key={target.workspaceId} target={target} onClose={closeEdit} t={t} {...actions} />
@@ -47,11 +61,24 @@ export function apply(ctx: Context): void {
     const basename = workspace.path.split(/[\\/]/).filter(Boolean).at(-1) || workspace.path
     return { workspaceId: workspace.workspaceId, displayTitle: workspace.title || basename, path: workspace.path }
   }
+  const resolveSession = (sessionId: string): EditTarget | undefined => {
+    const items = ctx.workspaces.list.getSnapshot().items as ReadonlyArray<{ workspaceId: string; sessionIds?: readonly string[] }>
+    const listed = items.find(item => item.sessionIds?.includes(sessionId))?.workspaceId
+    const key = listed ?? workspaceKeyForSession(document, sessionId)
+    return key === undefined ? undefined : resolveWorkspace(key)
+  }
   ctx.effect(() => installWorkspaceMenu(document, {
     label: () => t('edit'),
     resolve: resolveWorkspace,
     open: target => { editRequest.set(target) },
   }), 'addir: workspace menu adapter')
+  ctx.slots.inject('sidebar.workspaces.session.menu.item', () => ctx.slots.register({
+    name: 'sidebar.workspaces.session.menu.item',
+    id: 'dsh-plugin-addir.edit',
+    order: 500,
+    locale: 'addir',
+    inject: () => ({ resolveSession, open: (target: EditTarget) => { editRequest.set(target) } }),
+  }, SessionEditMenuItem))
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay', id: 'dsh-plugin-addir.editor', locale: 'addir',
     inject: () => ({

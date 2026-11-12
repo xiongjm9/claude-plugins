@@ -84,6 +84,11 @@ window.__ModuleLoader__.load({
 				active = void 0;
 			};
 		}
+		function workspaceKeyForSession(doc, sessionId) {
+			const row = doc.querySelector(`[data-row-key="session:${CSS.escape(sessionId)}"]`);
+			const key = row?.parentElement?.querySelector("[data-row-key^=\"workspace:\"]")?.getAttribute("data-row-key");
+			return key !== void 0 && key !== null && key.startsWith("workspace:") && key.length > 10 ? key.slice(10) : void 0;
+		}
 		//#endregion
 		//#region src/client/api.ts
 		async function request(action, body, signal) {
@@ -505,7 +510,7 @@ window.__ModuleLoader__.load({
 			nameRequired: "Enter a project name",
 			pathRequired: "Enter a folder path",
 			globalTitle: "Linked directories",
-			globalNote: "Global plugin behavior. Manage each project’s folders from its workspace menu → Edit.",
+			globalNote: "Global plugin behavior. Manage each project’s folders from Edit in the session menu or the workspace menu.",
 			tools: "Agent directory tools",
 			toolsNote: "Allow the agent to list, add and remove associated directories.",
 			context: "Directory context",
@@ -541,7 +546,7 @@ window.__ModuleLoader__.load({
 			nameRequired: "请输入项目名称",
 			pathRequired: "请输入文件夹路径",
 			globalTitle: "关联目录",
-			globalNote: "管理插件的全局行为。各项目的文件夹请从工作区三点菜单中的“编辑”管理",
+			globalNote: "管理插件的全局行为。各项目的文件夹请从会话菜单或工作区菜单中的“编辑”管理",
 			tools: "智能体目录工具",
 			toolsNote: "允许智能体查看、添加和移除关联目录",
 			context: "目录上下文",
@@ -608,6 +613,20 @@ window.__ModuleLoader__.load({
 			"workspaces",
 			"uiWorkspace"
 		];
+		function SessionEditMenuItem({ sessionId, useMenuOpenState, t, resolveSession, open }) {
+			const [, setMenuOpen] = useMenuOpenState();
+			const target = resolveSession(sessionId);
+			if (target === void 0) return null;
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.MenuItemButton, {
+				separatorBefore: true,
+				icon: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEditOutlineRegular, {}),
+				onSelect: () => {
+					setMenuOpen(false);
+					open(target);
+				},
+				children: t("edit")
+			});
+		}
 		function EditOverlay({ useEditRequest, closeEdit, t, ...actions }) {
 			const target = useEditRequest((value) => value);
 			return target === null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(WorkspaceAddirModal, {
@@ -643,6 +662,12 @@ window.__ModuleLoader__.load({
 					path: workspace.path
 				};
 			};
+			const resolveSession = (sessionId) => {
+				const items = ctx.workspaces.list.getSnapshot().items;
+				const listed = items.find((item) => item.sessionIds?.includes(sessionId))?.workspaceId;
+				const key = listed ?? workspaceKeyForSession(document, sessionId);
+				return key === void 0 ? void 0 : resolveWorkspace(key);
+			};
 			ctx.effect(() => installWorkspaceMenu(document, {
 				label: () => t("edit"),
 				resolve: resolveWorkspace,
@@ -650,6 +675,18 @@ window.__ModuleLoader__.load({
 					editRequest.set(target);
 				}
 			}), "addir: workspace menu adapter");
+			ctx.slots.inject("sidebar.workspaces.session.menu.item", () => ctx.slots.register({
+				name: "sidebar.workspaces.session.menu.item",
+				id: "dsh-plugin-addir.edit",
+				order: 500,
+				locale: "addir",
+				inject: () => ({
+					resolveSession,
+					open: (target) => {
+						editRequest.set(target);
+					}
+				})
+			}, SessionEditMenuItem));
 			ctx.slots.inject("shell.overlay", () => ctx.slots.register({
 				name: "shell.overlay",
 				id: "dsh-plugin-addir.editor",

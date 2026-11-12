@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { installWorkspaceMenu } from '../src/client/workspace-menu.ts'
+import { installWorkspaceMenu, workspaceKeyForSession } from '../src/client/workspace-menu.ts'
 import type { EditTarget } from '../src/client/WorkspaceAddirModal.tsx'
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
 
@@ -51,6 +51,12 @@ describe('workspace menu adapter', () => {
     document.querySelector<HTMLButtonElement>('[data-addir-menu] button')!.click()
     await flush()
     expect(s.open).toHaveBeenLastCalledWith(s.targets.two)
+  })
+  it('reads the workspace id from the session row group', () => {
+    document.body.innerHTML = '<div><div data-row-key="workspace:old-erp"></div><div data-row-key="session:abc"></div></div><div><div data-row-key="workspace:"></div><div data-row-key="session:loose"></div></div>'
+    expect(workspaceKeyForSession(document, 'abc')).toBe('old-erp')
+    expect(workspaceKeyForSession(document, 'loose')).toBeUndefined()
+    expect(workspaceKeyForSession(document, 'missing')).toBeUndefined()
   })
   it('ignores session menus and the Workspace New Session button', async () => {
     const s = setup()
