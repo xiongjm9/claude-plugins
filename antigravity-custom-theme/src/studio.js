@@ -3,6 +3,7 @@
     // 页面 origin 端口每次启动都变，localStorage 不可靠，主存走 nativeStorage（与 THEME_PREF_KEY 同一套）。
     const STUDIO = /*@@STUDIO_META@@*/;
     const PREFS_KEY = 'custom-theme-studio';
+    const SYNC_AT_KEY = 'custom-theme-synced-at';
     const STUDIO_CSS = /*@@STUDIO_CSS@@*/;
     const DEFAULT_PREFS = {
         accent: '',          // 空 = 跟随皮肤
@@ -74,13 +75,29 @@
         };
     }
 
-    function savePrefs(immediate) {
+    function writeSyncedAt(iso) {
+        const v = iso || new Date().toISOString();
+        try { localStorage.setItem(SYNC_AT_KEY, v); } catch (e) {}
+        try {
+            if (window.nativeStorage && typeof window.nativeStorage.updateItems === 'function') {
+                Promise.resolve(window.nativeStorage.updateItems({ [SYNC_AT_KEY]: v })).catch(() => {});
+            }
+        } catch (e) {}
+        return v;
+    }
+
+    function savePrefs(immediate, syncedAt) {
         try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {}
         clearTimeout(nativeTimer);
         const push = () => {
+            const at = syncedAt || new Date().toISOString();
+            try { localStorage.setItem(SYNC_AT_KEY, at); } catch (e) {}
             try {
                 if (window.nativeStorage && typeof window.nativeStorage.updateItems === 'function') {
-                    Promise.resolve(window.nativeStorage.updateItems({ [PREFS_KEY]: JSON.stringify(prefs) })).catch(() => {});
+                    Promise.resolve(window.nativeStorage.updateItems({
+                        [PREFS_KEY]: JSON.stringify(prefs),
+                        [SYNC_AT_KEY]: at
+                    })).catch(() => {});
                 }
             } catch (e) {}
         };
@@ -97,6 +114,51 @@
             Promise.resolve(window.nativeStorage.getItems()).then((items) => {
                 if (!items) return;
                 if (items[PREFS_KEY]) {
+                    try { prefs = normalizePrefs(JSON.parse(items[PREFS_KEY])); } catch (e) {}
+                    try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {}
+                }
+                studioApply();
+                studioRefresh();
+            }).catch(() => {});
+        } catch (e) {}
+    }
+
+    function applyBoot(boot, persist) {
+        if (!boot || typeof boot !== 'object') return false;
+        const persistNative = persist !== false;
+        if (typeof boot.theme === 'string' && boot.theme) applyTheme(boot.theme, persistNative);
+        if (boot.studio && typeof boot.studio === 'object') {
+            prefs = normalizePrefs(boot.studio);
+            if (persistNative) savePrefs(true, typeof boot.savedAt === 'string' ? boot.savedAt : undefined);
+        } else if (persistNative && typeof boot.savedAt === 'string') {
+            writeSyncedAt(boot.savedAt);
+        }
+        studioApply();
+        studioRefresh();
+        return true;
+    }
+
+    function reconcileFromBootOrNative() {
+        const bootAt = Date.parse((window.__agThemeBoot && window.__agThemeBoot.savedAt) || '') || 0;
+        try {
+            if (!(window.nativeStorage && typeof window.nativeStorage.getItems === 'function')) {
+                if (bootAt && window.__agThemeBoot) applyBoot(window.__agThemeBoot, true);
+                return;
+            }
+            Promise.resolve(window.nativeStorage.getItems()).then((items) => {
+                let localAt = 0;
+                try { localAt = Date.parse((items && items[SYNC_AT_KEY]) || localStorage.getItem(SYNC_AT_KEY) || '') || 0; } catch (e) {}
+                if (bootAt > localAt && window.__agThemeBoot && (window.__agThemeBoot.theme || window.__agThemeBoot.studio)) {
+                    applyBoot(window.__agThemeBoot, true);
+                    return;
+                }
+                if (items && items[THEME_PREF_KEY]) {
+                    const savedRaw = items[THEME_PREF_KEY];
+                    const saved = resolveThemeId(savedRaw);
+                    if (saved !== savedRaw) saveThemePref(saved, true);
+                    if (saved !== lastActiveId) applyTheme(saved);
+                }
+                if (items && items[PREFS_KEY]) {
                     try { prefs = normalizePrefs(JSON.parse(items[PREFS_KEY])); } catch (e) {}
                     try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {}
                 }
@@ -570,6 +632,7 @@
         get prefs() { return prefs; },
         get wallUploadId() { return wallUpload ? wallUpload.id : null; },
         get wallUpload() { return wallUpload; },
+        applyBoot(boot) { return applyBoot(boot, true); },
         ackWall(id, res) {
             if (!wallUpload || wallUpload.id !== id) return false;
             const name = wallUpload.name;

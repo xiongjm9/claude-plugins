@@ -417,9 +417,9 @@ const THEME_PREF_KEY = 'custom-theme-id';
     // 立即初始化当前主题（首次应用不回写主存，避免把 localStorage 缺失时的回退值覆盖到真实偏好上）
     loadLocalPrefs();
     applyTheme(getActiveThemeId(), false);
-    // 启动校准：以 app 原生持久化存储（nativeStorage）记住的主题与外观偏好为准
-    reconcileThemePref();
-    reconcileStudioPrefs();
+    // 启动校准：boot.json 与 nativeStorage 按 savedAt / synced-at 取较新的一方
+    if (typeof reconcileFromBootOrNative === 'function') reconcileFromBootOrNative();
+    else { reconcileThemePref(); reconcileStudioPrefs(); }
 
     // 立即尝试挂载与标题栏初始化
     mountThemeSelector();

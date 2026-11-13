@@ -77,6 +77,7 @@ function bootPrelude() {
   const boot = {};
   if (typeof b.theme === 'string' && b.theme.length < 64) boot.theme = b.theme;
   if (b.studio && typeof b.studio === 'object') boot.studio = b.studio;
+  if (typeof b.savedAt === 'string' && b.savedAt.length < 64) boot.savedAt = b.savedAt;
   try {
     const buf = fs.readFileSync(WALL_FILE);
     if (isWebp(buf)) boot.wallImage = 'data:image/webp;base64,' + buf.toString('base64');
@@ -119,18 +120,53 @@ const STATE = `(() => {
 })()`;
 
 let lastBootJson = null;
+let lastBootWrittenAt = 0;
+
+function bootStamp(boot) {
+  const t = Date.parse(boot && boot.savedAt);
+  return Number.isFinite(t) ? t : 0;
+}
+
+function bootCanonical(theme, studio) {
+  return JSON.stringify({ theme, studio });
+}
+
+function rememberBoot(boot) {
+  lastBootJson = bootCanonical(boot && boot.theme, boot && boot.studio);
+  lastBootWrittenAt = Math.max(lastBootWrittenAt, bootStamp(boot));
+}
+
+function newerBootThanPage(theme, studio) {
+  const cur = readBoot();
+  if (!cur.theme && !cur.studio) return null;
+  const pageJson = bootCanonical(theme, studio);
+  const fileJson = bootCanonical(cur.theme, cur.studio);
+  if (fileJson === pageJson) {
+    rememberBoot(cur);
+    return null;
+  }
+  if (lastBootJson === null) rememberBoot(cur);
+  if (bootStamp(cur) > lastBootWrittenAt) return cur;
+  return null;
+}
+
 function writeBoot(theme, studio) {
   if (typeof theme !== 'string' || !studio || typeof studio !== 'object') return false;
-  const json = JSON.stringify({ theme, studio });
-  if (lastBootJson === null) {
-    const cur = readBoot();
-    lastBootJson = JSON.stringify({ theme: cur.theme, studio: cur.studio });
+  const json = bootCanonical(theme, studio);
+  const cur = readBoot();
+  if (lastBootJson === null) rememberBoot(cur);
+  if (json === lastBootJson || json === bootCanonical(cur.theme, cur.studio)) {
+    rememberBoot(Object.assign({}, cur, { theme, studio }));
+    return false;
   }
-  if (json === lastBootJson) return false;
+  // DeepSeek Harness（或其他来源）刚写入了更新的 boot.json，不要立刻盖掉
+  if (bootStamp(cur) > lastBootWrittenAt) return false;
+  const savedAt = new Date().toISOString();
   const tmp = BOOT_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify({ theme, studio, savedAt: new Date().toISOString() }, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify({ theme, studio, savedAt }, null, 2));
   fs.renameSync(tmp, BOOT_FILE);
   lastBootJson = json;
+  lastBootWrittenAt = Date.parse(savedAt);
   return true;
 }
 
@@ -160,7 +196,21 @@ async function syncAll({ force = false, log = () => {} } = {}) {
         continue;
       }
       out.states.push(st);
-      if (!bootDone && st.ready && writeBoot(st.theme, st.studio)) log(`boot.json <- ${st.theme}`);
+      if (!bootDone && st.ready) {
+        const incoming = newerBootThanPage(st.theme, st.studio);
+        if (incoming && incoming.theme) {
+          const payload = { theme: incoming.theme, studio: incoming.studio, savedAt: incoming.savedAt };
+          const [ok] = await evaluate(t.webSocketDebuggerUrl, [
+            `window.__agThemeState && window.__agThemeState.applyBoot && window.__agThemeState.applyBoot(${JSON.stringify(payload)})`
+          ]);
+          if (ok) {
+            rememberBoot(incoming);
+            log(`boot.json -> ${incoming.theme}`);
+          }
+        } else if (writeBoot(st.theme, st.studio)) {
+          log(`boot.json <- ${st.theme}`);
+        }
+      }
       bootDone = bootDone || st.ready;
       if (st.wallUpload) {
         const [data] = await evaluate(t.webSocketDebuggerUrl, ['window.__agThemeState.wallUpload ? window.__agThemeState.wallUpload.data : null'], 20000);

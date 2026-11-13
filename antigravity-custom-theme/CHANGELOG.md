@@ -1,5 +1,12 @@
 # 主题变更
 
+## 2026-11-13 与 DeepSeek Harness 皮肤同步
+
+- `boot.json` 的 `savedAt` 会随启动脚本一起注入。若文件比本机 nativeStorage 的同步时间更新（例如 DeepSeek Harness 刚改过皮肤），启动时按 boot 应用，不再被旧偏好盖掉。
+- 守护进程发现 `boot.json` 比页面更新时，会调用 `applyBoot` 把文件刷进窗口，而不是把页面里的旧选择写回去。
+- 偏好写入 nativeStorage 时同时记下 `custom-theme-synced-at`，方便和下一次 boot 比较。
+
+
 ## 2026-11-05 语音按钮
 
 - 输入栏语音胶囊不再是一颗纯黑圆。主题把 `--background` 设成透明后，官方 `text-background` 波形跟着透明。
