@@ -1,0 +1,4 @@
+# 只插入一条宿主加载项；浏览器半边由 package.json 的 dsh.client 声明接入。
+- insert:
+    - id: antigravity-skin
+      name: dsh-antigravity-skin

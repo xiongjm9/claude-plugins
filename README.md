@@ -8,6 +8,7 @@
 | [antigravity-custom-theme](antigravity-custom-theme/) | Antigravity 浅色主题与中文主题切换器，更新后由守护进程自动恢复 |
 | [cdp-launch](cdp-launch/) | 用独立用户目录启动带远程调试端口的 Chrome / Edge，供 CDP 测试使用 |
 | [cc-remote-search](cc-remote-search/) | Claude Code 接第三方模型时补上网页搜索和抓取；官方 Anthropic 地址仍用原生 WebSearch |
+| [dsh-antigravity-skin](dsh-antigravity-skin/) | DeepSeek Harness 独立外观插件：五套浅色皮肤、材质和壁纸，并可与 Antigravity 主题按 boot.json 同步 |
 | [dsh-claude-parity](dsh-claude-parity/) | DeepSeek Harness 桌面补齐：密钥路径拒绝读取、write/edit 回退、跨会话记忆、挂到本机 Chrome 9222 |
 | [dsh-compaction-codex](dsh-compaction-codex/) | DeepSeek Harness 的 Codex 式上下文压缩后端：压缩时保留最近的用户原话逐字加摘要，源码原在业务仓库，已迁到本仓库统一维护 |
 | [dsh-plugin-addir](dsh-plugin-addir/) | DeepSeek Harness 工作区额外目录：在工作区「编辑」里挂其他文件夹，之后该工作区的对话都能读到这些代码 |
