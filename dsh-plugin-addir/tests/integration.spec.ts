@@ -80,6 +80,7 @@ describe('WorkspaceDirectoriesProvider (dsh-plugin-addir) integration', () => {
       turn: 1,
       step: 1,
       signal: new AbortController().signal,
+      modelSelection: {} as any,
     }, async () => ({
       kind: 'enter',
       messages: originalMessages as any,

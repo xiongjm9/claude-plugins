@@ -43,7 +43,7 @@ By default, a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness
 - 🛡️ **Fine-Grained Read-Only Protection**  
   Intercepts `write` and `edit` file tool calls for directories marked `readOnly`, preventing accidental modifications to core libraries or specs.
 - 🖥️ **Seamless Native GUI Integration**  
-  Built directly into the DSH workspace action menu (`⋯` → Edit). The modal dialog invokes your system's native folder picker for a smooth experience.
+  Built directly into the DSH project row context menu (right-click a project → 「Add to workspace」). The modal dialog invokes your system's native folder picker for a smooth experience.
 - 💾 **Automatic Persistence**  
   Directory associations are keyed by normalized workspace root and persisted in local storage (`$DSH_HOME/storages/addir.json`), immediately restored across restarts.
 - 🤖 **Agent Autonomy & Control**  
@@ -53,8 +53,8 @@ By default, a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness
 
 ## 🖥️ UI Walkthrough
 
-### 1. Workspace Menu Entry
-Click the「`⋯`」menu button on any workspace row and select「**Edit**」:
+### 1. Project Row Context Menu Entry
+Right-click the target project in the sidebar (or click the「`⋯`」button on its row) and select「**Add to workspace**」:
 
 ![Workspace Menu](assets/workspace-menu.png)
 
@@ -83,7 +83,7 @@ The model can now reference files using shorthand like `[backend]/src/app.ts` or
 ## 🚀 Quick Start
 
 1. **Install the plugin** (see [Installation](#-installation) below);
-2. **Link directories**: Click「`⋯`」→「Edit」in the workspace list, click「**Add Folder**」to choose a local directory, enter an alias (e.g. `backend`), and click Save;
+2. **Link directories**: Right-click the target project in the sidebar, select「**Add to workspace**」, click「**Add Folder**」to choose a local directory, enter an alias (e.g. `backend`), and click Save;
 3. **Start chatting**: Ask your agent:
    > *"Please read the routing definitions in [backend] and generate the corresponding API client methods for our frontend project."*
 
@@ -207,7 +207,7 @@ export function apply(ctx: Context) {
 ## ❓ FAQ
 
 <details>
-<summary><b>Q: Why doesn't the "Edit" menu option show up in Desktop after installation?</b></summary>
+<summary><b>Q: Why doesn't the "Add to workspace" menu option show up in Desktop after installation?</b></summary>
 
 When installing plugins for the Desktop profile, ensure the desktop application process is completely terminated before running the install command (on macOS, use `Cmd + Q`; on Windows, quit from system tray / task manager), then restart the application to load the newly registered client bundle.
 </details>
@@ -248,7 +248,7 @@ pnpm run typecheck
 pnpm run build
 ```
 
-> **Architecture Note**: Client scripts are registered through classic runtime wrappers (`window.__ModuleLoader__.load`) and consume host-provided React instances. The workspace menu entry point is dynamically mounted via a resilient DOM adapter (`src/client/workspace-menu.ts`).
+> **Architecture Note**: Client scripts are registered through classic runtime wrappers (`window.__ModuleLoader__.load`) and consume host-provided React instances. The project row entry point is contributed through the shared context menu service (`ctx.contextMenus.register({ target: 'workspace' })`), so it appears in both the row's `⋯` menu and its right-click menu.
 
 ---
 

@@ -5,6 +5,7 @@ export declare const en: {
     title: string;
     name: string;
     folders: string;
+    addToWorkspace: string;
     add: string;
     path: string;
     alias: string;

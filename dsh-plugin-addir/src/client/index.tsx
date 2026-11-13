@@ -3,13 +3,14 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type {} from '@deepseek-ai/dsh-client-ui-context-menu/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { HostObservable, PropsHooks, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { IconEditOutlineRegular, MenuItemButton } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconEditOutlineRegular, IconProjectAddOutlineRegular, MenuItemButton } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { installWorkspaceMenu, workspaceKeyForSession } from './workspace-menu.ts'
+import { workspaceKeyForSession } from './workspace-menu.ts'
 import { AddirSettingsSection } from './SettingsSection.tsx'
 import { WorkspaceAddirModal, type EditTarget, type EditorActions } from './WorkspaceAddirModal.tsx'
 import { en, zh, type CopyKey } from './locales.ts'
@@ -22,7 +23,7 @@ export * from './SettingsSection.tsx'
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap { addir: CopyKey }
 }
-export const inject = ['slots', 'locale', 'workspaces', 'uiWorkspace']
+export const inject = ['slots', 'locale', 'workspaces', 'uiWorkspace', 'contextMenus']
 
 type OverlayProps = PropsRuntime<'shell.overlay'> & PropsLocale<'addir'>
   & PropsHooks<{ editRequest: HostObservable<EditTarget | null> }>
@@ -67,11 +68,23 @@ export function apply(ctx: Context): void {
     const key = listed ?? workspaceKeyForSession(document, sessionId)
     return key === undefined ? undefined : resolveWorkspace(key)
   }
-  ctx.effect(() => installWorkspaceMenu(document, {
-    label: () => t('edit'),
-    resolve: resolveWorkspace,
-    open: target => { editRequest.set(target) },
-  }), 'addir: workspace menu adapter')
+  // Project row entry: the shared context menu opens from the project's own
+  // "..." button and from a right click, so the folders of a project can be
+  // managed without opening one of its sessions first.
+  ctx.effect(() => ctx.contextMenus.register({
+    id: 'dsh-plugin-addir.add',
+    target: 'workspace',
+    order: 200,
+    resolve: ({ workspaceId, path, displayTitle }) => [{
+      id: 'add',
+      label: t('addToWorkspace'),
+      icon: { key: 'dsh-plugin-addir.add' },
+      run: () => { editRequest.set({ workspaceId, path, displayTitle }) },
+    }],
+  }), 'addir: workspace context menu')
+  ctx.slots.inject('contextMenu.icon', () => ctx.slots.register({
+    name: 'contextMenu.icon', key: 'dsh-plugin-addir.add',
+  }, IconProjectAddOutlineRegular))
   ctx.slots.inject('sidebar.workspaces.session.menu.item', () => ctx.slots.register({
     name: 'sidebar.workspaces.session.menu.item',
     id: 'dsh-plugin-addir.edit',

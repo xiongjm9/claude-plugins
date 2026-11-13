@@ -4,90 +4,24 @@ window.__ModuleLoader__.load({
 		var module = { exports: {} };
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let _deepseek_ai_dsh_client_store = require("@deepseek-ai/dsh-client-store");
 		let react = require("react");
-		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let react_jsx_runtime = require("react/jsx-runtime");
 		//#region src/client/workspace-menu.ts
+		/** Sidebar row lookups shared by the session menu entry. */
 		/**
-		* Add Edit to the menu opened by a registered Workspace's first action button.
-		* Native rows retain their handlers; the adapter copies Rename's presentation only.
-		* @param doc - Client document containing Workspace rows and portaled menus.
-		* @param actions - localized label, current Workspace lookup and editor callback.
-		* @returns disposer removing listeners, observer and contributed rows.
+		* Workspace id rendered in the same sidebar group as a session row.
+		* Desktop groups each workspace and its sessions under one section, so the
+		* session "..." menu can open that workspace's editor without a second menu.
+		* @param doc - document that contains the sidebar rows.
+		* @param sessionId - session whose row is open.
+		* @returns the workspace id, or undefined when the row is ungrouped or not mounted.
 		*/
-		function installWorkspaceMenu(doc, actions) {
-			let active;
-			const contributed = /* @__PURE__ */ new Set();
-			let disposed = false;
-			const capture = (event) => {
-				if (!(event.target instanceof Element)) return;
-				const button = event.target.closest("button");
-				const row = button?.closest("[data-row-key^=\"workspace:\"]");
-				if (button !== null && row !== void 0 && row !== null && button === row.querySelector("button")) {
-					const key = row.dataset.rowKey?.slice(10);
-					if (key && actions.resolve(key) !== void 0) {
-						active = {
-							anchor: button,
-							key,
-							before: new Set(doc.querySelectorAll("[role=\"menu\"]"))
-						};
-						return;
-					}
-				}
-				if (active?.menu?.contains(event.target)) return;
-				active = void 0;
-			};
-			const observer = new MutationObserver(() => {
-				for (const node of contributed) if (!node.isConnected) contributed.delete(node);
-				if (active === void 0 || !active.anchor.isConnected) return;
-				if (active.menu !== void 0) return;
-				const menu = [...doc.querySelectorAll("[role=\"menu\"]")].find((node) => !active?.before.has(node));
-				if (menu === void 0) return;
-				active.menu = menu;
-				const nativeRows = menu.querySelectorAll("button[role=\"menuitem\"]");
-				const rename = nativeRows[0];
-				const wrapper = rename?.parentElement;
-				if (nativeRows.length !== 2 || rename === void 0 || wrapper?.parentElement?.getAttribute("role") !== "presentation") return;
-				const copy = wrapper.cloneNode(true);
-				if (!(copy instanceof HTMLElement)) return;
-				const edit = copy.querySelector("button");
-				const label = edit?.querySelector("span:last-child");
-				if (edit === null || edit === void 0 || label === null || label === void 0) return;
-				copy.dataset.addirMenu = "";
-				edit.removeAttribute("aria-keyshortcuts");
-				label.textContent = actions.label();
-				const occurrence = active;
-				edit.addEventListener("click", (event) => {
-					event.stopPropagation();
-					const target = actions.resolve(occurrence.key);
-					if (target === void 0 || !occurrence.anchor.isConnected) return;
-					occurrence.anchor.click();
-					queueMicrotask(() => {
-						if (!disposed) actions.open(target);
-					});
-				});
-				wrapper.before(copy);
-				contributed.add(copy);
-			});
-			doc.addEventListener("click", capture, true);
-			observer.observe(doc.body, {
-				childList: true,
-				subtree: true
-			});
-			return () => {
-				disposed = true;
-				doc.removeEventListener("click", capture, true);
-				observer.disconnect();
-				for (const node of contributed) node.remove();
-				contributed.clear();
-				active = void 0;
-			};
-		}
 		function workspaceKeyForSession(doc, sessionId) {
-			const row = doc.querySelector(`[data-row-key="session:${CSS.escape(sessionId)}"]`);
-			const key = row?.parentElement?.querySelector("[data-row-key^=\"workspace:\"]")?.getAttribute("data-row-key");
-			return key !== void 0 && key !== null && key.startsWith("workspace:") && key.length > 10 ? key.slice(10) : void 0;
+			const key = (doc.querySelector(`[data-row-key="session:${CSS.escape(sessionId)}"]`)?.parentElement?.querySelector("[data-row-key^=\"workspace:\"]"))?.getAttribute("data-row-key");
+			if (key === null || key === void 0 || !key.startsWith("workspace:") || key.length <= 10) return void 0;
+			return key.slice(10);
 		}
 		//#endregion
 		//#region src/client/api.ts
@@ -490,6 +424,7 @@ window.__ModuleLoader__.load({
 			title: "Edit project",
 			name: "Project name",
 			folders: "Source folders",
+			addToWorkspace: "Add to workspace",
 			add: "Add folder",
 			path: "Folder path",
 			alias: "Alias (optional)",
@@ -510,7 +445,7 @@ window.__ModuleLoader__.load({
 			nameRequired: "Enter a project name",
 			pathRequired: "Enter a folder path",
 			globalTitle: "Linked directories",
-			globalNote: "Global plugin behavior. Manage each project’s folders from Edit in the session menu or the workspace menu.",
+			globalNote: "Global plugin behavior. Manage each project’s folders from “Add to workspace” in the project’s right-click menu.",
 			tools: "Agent directory tools",
 			toolsNote: "Allow the agent to list, add and remove associated directories.",
 			context: "Directory context",
@@ -526,6 +461,7 @@ window.__ModuleLoader__.load({
 			title: "编辑项目",
 			name: "项目名称",
 			folders: "源文件夹",
+			addToWorkspace: "添加到工作区",
 			add: "添加文件夹",
 			path: "文件夹路径",
 			alias: "别名（选填）",
@@ -546,7 +482,7 @@ window.__ModuleLoader__.load({
 			nameRequired: "请输入项目名称",
 			pathRequired: "请输入文件夹路径",
 			globalTitle: "关联目录",
-			globalNote: "管理插件的全局行为。各项目的文件夹请从会话菜单或工作区菜单中的“编辑”管理",
+			globalNote: "管理插件的全局行为。各项目的文件夹请在项目右键菜单的“添加到工作区”中管理",
 			tools: "智能体目录工具",
 			toolsNote: "允许智能体查看、添加和移除关联目录",
 			context: "目录上下文",
@@ -611,7 +547,8 @@ window.__ModuleLoader__.load({
 			"slots",
 			"locale",
 			"workspaces",
-			"uiWorkspace"
+			"uiWorkspace",
+			"contextMenus"
 		];
 		function SessionEditMenuItem({ sessionId, useMenuOpenState, t, resolveSession, open }) {
 			const [, setMenuOpen] = useMenuOpenState();
@@ -663,18 +600,30 @@ window.__ModuleLoader__.load({
 				};
 			};
 			const resolveSession = (sessionId) => {
-				const items = ctx.workspaces.list.getSnapshot().items;
-				const listed = items.find((item) => item.sessionIds?.includes(sessionId))?.workspaceId;
-				const key = listed ?? workspaceKeyForSession(document, sessionId);
+				const key = ctx.workspaces.list.getSnapshot().items.find((item) => item.sessionIds?.includes(sessionId))?.workspaceId ?? workspaceKeyForSession(document, sessionId);
 				return key === void 0 ? void 0 : resolveWorkspace(key);
 			};
-			ctx.effect(() => installWorkspaceMenu(document, {
-				label: () => t("edit"),
-				resolve: resolveWorkspace,
-				open: (target) => {
-					editRequest.set(target);
-				}
-			}), "addir: workspace menu adapter");
+			ctx.effect(() => ctx.contextMenus.register({
+				id: "dsh-plugin-addir.add",
+				target: "workspace",
+				order: 200,
+				resolve: ({ workspaceId, path, displayTitle }) => [{
+					id: "add",
+					label: t("addToWorkspace"),
+					icon: { key: "dsh-plugin-addir.add" },
+					run: () => {
+						editRequest.set({
+							workspaceId,
+							path,
+							displayTitle
+						});
+					}
+				}]
+			}), "addir: workspace context menu");
+			ctx.slots.inject("contextMenu.icon", () => ctx.slots.register({
+				name: "contextMenu.icon",
+				key: "dsh-plugin-addir.add"
+			}, _deepseek_ai_dsh_client_ui_primitives.IconProjectAddOutlineRegular));
 			ctx.slots.inject("sidebar.workspaces.session.menu.item", () => ctx.slots.register({
 				name: "sidebar.workspaces.session.menu.item",
 				id: "dsh-plugin-addir.edit",
